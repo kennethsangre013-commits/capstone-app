@@ -17,6 +17,8 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
 import { db, auth } from "../../src/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { useGoogleAuth } from "../../src/auth/GoogleAuth";
+import { useFacebookAuth } from "../../src/auth/FacebookAuth";
 
 export default function SigninScreen() {
   const [email, setEmail] = React.useState("");
@@ -24,6 +26,8 @@ export default function SigninScreen() {
   const [passwordIsVisible, setPasswordIsVisible] = React.useState(false);
   const router = useRouter();
   const { signIn, loading, error } = useAuth();
+  const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleAuth();
+  const { signInWithFacebook, loading: facebookLoading, error: facebookError } = useFacebookAuth();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -148,30 +152,46 @@ export default function SigninScreen() {
               <Text style={styles.loginText}>{loading ? "Loading..." : "Login"}</Text>
             </TouchableOpacity>
 
-            {/* Temporarily disabled Google and Facebook login for build stability */}
-            {/*
             <View style={styles.orContainer}>
               <View style={styles.orLine} />
               <Text style={styles.orText}>or</Text>
               <View style={styles.orLine} />
             </View>
 
-            <TouchableOpacity style={styles.googleButton}>
+            <TouchableOpacity 
+              style={[styles.googleButton, (googleLoading || loading) && { opacity: 0.7 }]}
+              disabled={googleLoading || loading}
+              onPress={signInWithGoogle}
+            >
               <Image
                 source={require("../../assets/images/google-icon.png")}
                 style={styles.socialIcon}
               />
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
+              <Text style={styles.googleButtonText}>
+                {googleLoading ? "Signing in..." : "Continue with Google"}
+              </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.facebookButton}>
+            <TouchableOpacity 
+              style={[styles.facebookButton, (facebookLoading || loading) && { opacity: 0.7 }]}
+              disabled={facebookLoading || loading}
+              onPress={signInWithFacebook}
+            >
               <Image
                 source={require("../../assets/images/Facebook_Logo_Primary.png")}
                 style={styles.socialIcon}
               />
-              <Text style={styles.facebookButtonText}>Continue with Facebook</Text>
+              <Text style={styles.facebookButtonText}>
+                {facebookLoading ? "Signing in..." : "Continue with Facebook"}
+              </Text>
             </TouchableOpacity>
-            */}
+
+            {googleError ? (
+              <Text style={styles.errorText}>{googleError}</Text>
+            ) : null}
+            {facebookError ? (
+              <Text style={styles.errorText}>{facebookError}</Text>
+            ) : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
