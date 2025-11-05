@@ -1,0 +1,80 @@
+{
+  "expo": {
+    "name": "ezkiel-cater",
+    "slug": "ezkiel-cater",
+    "scheme": "ezkielcater",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ezekielcatering.app.com",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "ezekielcatering.app.com",
+      "googleServicesFile": "./google-services.json"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-iconic.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#3B141C",
+          "dark": {
+            "backgroundColor": "#ffffff"
+          }
+        }
+      ],
+      "expo-font",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "expo-web-browser",
+      ["expo-build-properties", {
+        "ios": {
+          "useFrameworks": "static"
+        }
+      }
+    ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ea28bac6-ebec-489c-81f9-1f2a840ea572"
+      },
+      "firebase": {
+        "apiKey": "AIzaSyAQENgLHcMUkY1NDG6qQjU0iqm2s7e7XiM",
+        "authDomain": "e-cater-24bfb.firebaseapp.com",
+        "projectId": "e-cater-24bfb",
+        "storageBucket": "e-cater-24bfb.firebasestorage.app",
+        "messagingSenderId": "456019997965",
+        "appId": "1:456019997965:web:a6449328753478a53cac44",
+        "measurementId": "G-1L4ZDYSJYW"
+      }
+    }
+  }
+}

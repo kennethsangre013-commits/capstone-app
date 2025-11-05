@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Kiddie Party",
+    "prices": ["100 pax = ₱35,000", "70 pax = ₱30,000", "50 pax = ₱25,000", "30 pax = ₱20,000"],
+    "size": "large"
+  },
+  {
+    "name": "Christening",
+    "prices": ["100 pax = ₱35,000", "70 pax = ₱25,000", "50 pax = ₱20,000", "30 pax = ₱20,000"],
+    "size": "medium"
+  },
+  {
+    "name": "Adult Birthday",
+    "prices": ["100 pax = ₱35,000", "70 pax = ₱30,000", "50 pax = ₱25,000", "30 pax = ₱20,000"],
+    "size": "small"
+  },
+  {
+    "name": "Debut",
+    "prices": ["100 pax = ₱40,000", "70 pax = ₱35,000", "50 pax = ₱30,000", "20 pax = ₱20,000"],
+    "size": "medium"
+  },
+  {
+    "name": "Wedding",
+    "prices": ["100 pax = ₱40,000", "70 pax = ₱35,000", "50 pax = ₱30,000", "30 pax = ₱20,000"],
+    "size": "large"
+  },
+  {
+    "name": "Corporate Gathering",
+    "prices": ["100 pax = ₱40,000", "70 pax = ₱35,000", "50 pax = ₱30,000", "30 pax = ₱20,000"],
+    "size": "medium"
+  },
+  {
+    "name": "Inclusions",
+    "prices": [
+      "Basic backdrop styling",
+      "Round tables with cover",
+      "Centerpiece & table numbers",
+      "Sanitized utensils & glasswares"
+    ],
+    "size": "large"
+  },
+  {
+    "name": "Freebies",
+    "prices": ["Basic lights & sounds", "Formal host or Clown", "Magician Host","Styro Letter Name", "Entrance Arc", "Red Carpet"],
+    "size": "small"
+  },
+  {
+    "name": "Add-ons",
+    "prices": ["Personalized Cake", "Event Coordinator", "Smoke Machine", "Chocolate Fountain"],
+    "size": "medium"
+  }
+]
