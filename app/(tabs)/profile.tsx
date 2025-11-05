@@ -18,6 +18,7 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
 import { db } from "../../src/firebase";
 import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import * as ImagePicker from "expo-image-picker";
 import { updatePassword, deleteUser } from "firebase/auth";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -61,7 +62,6 @@ export default function ProfileScreen() {
     setError(null);
     setSuccessMessage(null);
     try {
-      const ImagePicker = await import("expo-image-picker");
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
         setError("Permission required to select an image.");
