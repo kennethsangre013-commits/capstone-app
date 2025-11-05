@@ -1,4 +1,4 @@
-# Welcome to your e-cater app 👋
+# Welcome to e-cater app 👋
 # 📸 Quick Snapshots
 Here are the some snapshots of the "E-Cater App" User Interface 👇
 
