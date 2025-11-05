@@ -141,6 +141,8 @@ export default function SignupScreen() {
                     {localError ? <Text style={styles.errorText}>{localError}</Text> : null}
                     {error ? <Text style={styles.errorText}>{error}</Text> : null}
                     
+                    {/* Temporarily disabled Google and Facebook login for build stability */}
+                    {/*
                     <View style={styles.orContainer}>
                         <View style={styles.orLine} />
                         <Text style={styles.orText}>or</Text>
@@ -161,6 +163,7 @@ export default function SignupScreen() {
                         />
                         <Text style={styles.facebookButtonText}>Continue with Facebook</Text>
                     </TouchableOpacity>
+                    */}
                 </View>
             </ScrollView>
             </KeyboardAvoidingView>

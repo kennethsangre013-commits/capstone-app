@@ -148,6 +148,8 @@ export default function SigninScreen() {
               <Text style={styles.loginText}>{loading ? "Loading..." : "Login"}</Text>
             </TouchableOpacity>
 
+            {/* Temporarily disabled Google and Facebook login for build stability */}
+            {/*
             <View style={styles.orContainer}>
               <View style={styles.orLine} />
               <Text style={styles.orText}>or</Text>
@@ -169,6 +171,7 @@ export default function SigninScreen() {
               />
               <Text style={styles.facebookButtonText}>Continue with Facebook</Text>
             </TouchableOpacity>
+            */}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
