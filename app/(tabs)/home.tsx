@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, StyleSheet, Dimensions, Animated, } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, StyleSheet, Dimensions, Animated, RefreshControl } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -14,6 +14,7 @@ export default function HomeScreen() {
   const { signOut } = useAuth();
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [sidebarAnim] = useState(new Animated.Value(width));
+  const [refreshing, setRefreshing] = useState(false);
 
   const toggleSidebar = () => {
     const toValue = isSidebarVisible ? width : width * 0.3; 
@@ -23,6 +24,15 @@ export default function HomeScreen() {
       useNativeDriver: false,
     }).start();
     setIsSidebarVisible(!isSidebarVisible);
+  };
+  
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // No network fetch here yet; keep as a quick visual refresh.
+    } finally {
+      setRefreshing(false);
+    }
   };
   
   const handleSignOut = async () => {
@@ -84,7 +94,10 @@ export default function HomeScreen() {
         end={{ x: 1, y: 0 }}
         style={styles.feedBackground}
       >
-        <ScrollView contentContainerStyle={styles.feedContent}>
+        <ScrollView 
+          contentContainerStyle={styles.feedContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
           {[
             require("../../assets/images/image1.png"),
             require("../../assets/images/image2.png"),

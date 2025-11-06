@@ -1,6 +1,17 @@
 import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image } from "react-native";
+import { 
+  StyleSheet, 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  KeyboardAvoidingView, 
+  Platform, 
+  Image,
+  ScrollView,
+  Animated
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
 import { db } from "../../src/firebase";
@@ -13,9 +24,12 @@ export default function CompleteProfileScreen() {
   const [address, setAddress] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [saving, setSaving] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
+
+  const [toastMessage, setToastMessage] = React.useState<string | null>(null);
+  const [toastType, setToastType] = React.useState<"success" | "error">("success");
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     if (!authLoading && !user) {
@@ -39,9 +53,28 @@ export default function CompleteProfileScreen() {
     })();
   }, [user?.uid]);
 
-  const pickAndUploadImage = React.useCallback(async () => {
-    setError(null);
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToastMessage(message);
+    setToastType(type);
+    
+    Animated.sequence([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2500),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setToastMessage(null);
+    });
+  };
 
+  const pickAndUploadImage = React.useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ["image/*"],
@@ -58,7 +91,7 @@ export default function CompleteProfileScreen() {
       const MAX = 5 * 1024 * 1024;
 
       if (size > MAX) {
-        setError("Image must be 5MB or smaller.");
+        showToast("Image must be 5MB or smaller.", "error");
         return;
       }
 
@@ -68,7 +101,7 @@ export default function CompleteProfileScreen() {
       const uploadPreset = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
       if (!cloudName || !uploadPreset) {
-        setError("Cloudinary config is missing.");
+        showToast("Configuration error.", "error");
         return;
       }
 
@@ -92,28 +125,29 @@ export default function CompleteProfileScreen() {
       if (!res.ok) throw new Error(json?.error?.message || "Upload failed.");
       
       setPhotoUrl(json.secure_url);
+      showToast("Photo uploaded!", "success");
     } catch (e) {
-      setError("Failed to upload image.");
+      showToast("Upload failed.", "error");
     } finally {
       setUploading(false);
     }
   }, []);
 
   const onSave = React.useCallback(async () => {
-    setError(null);
-    if (!address || !phone) {
-      setError("Address and phone are required.");
+    if (!address.trim() || !phone.trim()) {
+      showToast("Please fill all fields.", "error");
       return;
     }
     if (!user) return;
+    
     try {
       setSaving(true);
       const ref = doc(db, "users", user.uid);
       await setDoc(
         ref,
         {
-          address,
-          phone,
+          address: address.trim(),
+          phone: phone.trim(),
           email: user.email || null,
           photoUrl: photoUrl || null,
           updatedAt: serverTimestamp(),
@@ -122,7 +156,7 @@ export default function CompleteProfileScreen() {
       );
       router.replace("/(tabs)/home");
     } catch (e) {
-      setError("Failed to save. Please try again.");
+      showToast("Save failed.", "error");
     } finally {
       setSaving(false);
     }
@@ -130,94 +164,193 @@ export default function CompleteProfileScreen() {
 
   if (authLoading) return null;
 
+  const isLoading = saving || uploading;
+
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-        <View style={styles.wrapper}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === "ios" ? "padding" : "height"} 
+        style={styles.flex}
+      >
+        <ScrollView 
+          style={styles.flex}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={styles.title}>Complete Profile</Text>
 
-          <View style={styles.avatarRow}>
+          <TouchableOpacity 
+            onPress={pickAndUploadImage}
+            disabled={uploading}
+            activeOpacity={0.8}
+            style={styles.photoButton}
+          >
             {photoUrl ? (
-              <Image source={{ uri: photoUrl }} style={styles.avatar} />
+              <Image source={{ uri: photoUrl }} style={styles.photo} />
             ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <Text style={styles.avatarPlaceholderText}>Add Photo</Text>
+              <View style={styles.photoPlaceholder}>
+                <Text style={styles.photoIcon}>+</Text>
               </View>
             )}
+          </TouchableOpacity>
+
+          <View style={styles.form}>
+            <View style={styles.field}>
+              <Text style={styles.label}>Address</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter address"
+                placeholderTextColor="#AAA"
+                value={address}
+                onChangeText={setAddress}
+                editable={!isLoading}
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Phone</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter phone number"
+                placeholderTextColor="#AAA"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                editable={!isLoading}
+              />
+            </View>
           </View>
-          <TouchableOpacity style={[styles.secondaryButton, uploading && { opacity: 0.7 }]} disabled={uploading} onPress={pickAndUploadImage}>
-            <Text style={styles.secondaryButtonText}>{uploading ? "Uploading..." : "Choose Photo"}</Text>
+
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
+            disabled={isLoading}
+            onPress={onSave}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>
+              {saving ? "Saving..." : uploading ? "Uploading..." : "Save"}
+            </Text>
           </TouchableOpacity>
+        </ScrollView>
 
-          <Text style={styles.label}>Address</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your address"
-            value={address}
-            onChangeText={setAddress}
-          />
-
-          <Text style={styles.label}>Phone Number</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your phone number"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-          />
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <TouchableOpacity style={[styles.button, (saving) && { opacity: 0.7 }]} disabled={saving} onPress={onSave}>
-            <Text style={styles.buttonText}>{saving ? "Saving..." : "Save"}</Text>
-          </TouchableOpacity>
-        </View>
+        {toastMessage && (
+          <Animated.View 
+            style={[
+              styles.toast,
+              toastType === "success" ? styles.toastSuccess : styles.toastError,
+              { opacity: fadeAnim }
+            ]}
+          >
+            <Text style={styles.toastText}>{toastMessage}</Text>
+          </Animated.View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  wrapper: { flex: 1, padding: 24 },
+  container: {
+    flex: 1,
+    backgroundColor: "#FFF",
+  },
+  flex: {
+    flex: 1,
+  },
+  content: {
+    padding: 32,
+    alignItems: "center",
+  },
   title: {
-    fontWeight: "bold",
-    color: "#FFB200",
-    fontSize: 22,
-    textAlign: "center",
-    marginBottom: 16,
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#000",
+    marginBottom: 40,
+  },
+  photoButton: {
+    marginBottom: 40,
+  },
+  photo: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#F5F5F5",
+  },
+  photoPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#F5F5F5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoIcon: {
+    fontSize: 36,
+    color: "#999",
+    fontWeight: "300",
+  },
+  form: {
+    width: "100%",
+    gap: 24,
+    marginBottom: 32,
+  },
+  field: {
+    gap: 8,
   },
   label: {
+    fontSize: 13,
+    fontWeight: "600",
     color: "#666",
-    marginTop: 8,
-    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   input: {
-    borderBottomWidth: 1.5,
-    borderBottomColor: "#eee",
-    paddingVertical: 10,
     fontSize: 16,
+    color: "#000",
+    paddingVertical: 12,
+    paddingHorizontal: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
   },
-  error: { color: "#B00020", marginTop: 12 },
   button: {
-    backgroundColor: "#3B141C",
-    padding: 14,
-    borderRadius: 12,
+    width: "100%",
+    backgroundColor: "#000",
+    paddingVertical: 16,
+    borderRadius: 8,
     alignItems: "center",
-    marginTop: 20,
   },
-  buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  avatarRow: { alignItems: "center", marginBottom: 12 },
-  avatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: "#eee" },
-  avatarPlaceholder: { alignItems: "center", justifyContent: "center" },
-  avatarPlaceholderText: { color: "#666", fontSize: 12 },
-  secondaryButton: {
-    alignSelf: "center",
-    backgroundColor: "#DA8D00",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginBottom: 8,
+  buttonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
-  secondaryButtonText: { color: "#fff", fontWeight: "600" },
+  buttonDisabled: {
+    opacity: 0.4,
+  },
+  toast: {
+    position: "absolute",
+    bottom: 80,
+    left: 32,
+    right: 32,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  toastSuccess: {
+    backgroundColor: "#000",
+  },
+  toastError: {
+    backgroundColor: "#E53935",
+  },
+  toastText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
+  },
 });

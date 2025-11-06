@@ -1,9 +1,10 @@
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import React from "react";
 import { useAuth } from "../../src/context/AuthContext";
 import { useRouter } from "expo-router";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 export default function ForgotPasswordScreen() {
     const [email, setEmail] = React.useState("");
@@ -11,98 +12,204 @@ export default function ForgotPasswordScreen() {
     const { sendReset, loading, error } = useAuth();
     const router = useRouter();
 
+    const handleSendReset = async () => {
+        setMessage(null);
+        try {
+            await sendReset(email.trim());
+            setMessage("Password reset email sent. Check your inbox or spam folder.");
+        } catch {}
+    };
+
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar style="light"/>
-            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-                <View style={styles.wrapper}>
-                    <View style={styles.topBar}>
-                        <Text style={styles.title}>Forgot Password</Text>
+            <StatusBar style="dark" />
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === "ios" ? "padding" : "height"} 
+                style={styles.keyboardView}
+            >
+                <View style={styles.content}>
+                    {/* Icon */}
+                    <View style={styles.iconContainer}>
+                        <MaterialCommunityIcons name="lock-reset" size={64} color="#FFA500" />
                     </View>
-                    <Text style={styles.subtitle}>Enter your email to receive a reset link.</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Email"
-                      autoCapitalize="none"
-                      keyboardType="email-address"
-                      onChangeText={setEmail}
-                      value={email}
-                    />
-                    {error ? <Text style={styles.error}>{error}</Text> : null}
-                    {message ? <Text style={styles.success}>{message}</Text> : null}
+
+                    {/* Title & Subtitle */}
+                    <Text style={styles.title}>Forgot Password?</Text>
+                    <Text style={styles.subtitle}>
+                        No worries! Enter your email address and we'll send you a link to reset your password.
+                    </Text>
+
+                    {/* Input Field */}
+                    <View style={styles.inputContainer}>
+                        <MaterialCommunityIcons name="email-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Enter your email"
+                            placeholderTextColor="#9CA3AF"
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            onChangeText={setEmail}
+                            value={email}
+                        />
+                    </View>
+
+                    {/* Error Message */}
+                    {error && (
+                        <View style={styles.messageContainer}>
+                            <MaterialCommunityIcons name="alert-circle" size={16} color="#DC2626" />
+                            <Text style={styles.errorText}>{error}</Text>
+                        </View>
+                    )}
+
+                    {/* Success Message */}
+                    {message && (
+                        <View style={[styles.messageContainer, styles.successContainer]}>
+                            <MaterialCommunityIcons name="check-circle" size={16} color="#059669" />
+                            <Text style={styles.successText}>{message}</Text>
+                        </View>
+                    )}
+
+                    {/* Send Button */}
                     <TouchableOpacity
-                      style={[styles.button, loading && { opacity: 0.7 }]}
-                      disabled={loading}
-                      onPress={async () => {
-                        try {
-                          await sendReset(email.trim());
-                          setMessage("Password reset email sent. Always check your spam");
-                        } catch {}
-                      }}
+                        style={[styles.button, loading && styles.buttonDisabled]}
+                        disabled={loading || !email.trim()}
+                        onPress={handleSendReset}
+                        activeOpacity={0.8}
                     >
-                      <Text style={styles.buttonText}>{loading ? "Sending..." : "Send Reset Link"}</Text>
+                        {loading ? (
+                            <ActivityIndicator color="#FFFFFF" size="small" />
+                        ) : (
+                            <>
+                                <MaterialCommunityIcons name="email" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                                <Text style={styles.buttonText}>Send Reset Link</Text>
+                            </>
+                        )}
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => router.back()}>
-                        <Text style={styles.back}>Back</Text>
+
+                    {/* Back Button */}
+                    <TouchableOpacity 
+                        onPress={() => router.back()}
+                        style={styles.backButton}
+                        activeOpacity={0.7}
+                    >
+                        <MaterialCommunityIcons name="arrow-left" size={18} color="#6B7280" />
+                        <Text style={styles.backText}>Back to Sign In</Text>
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
         </SafeAreaView>
-    )
+    );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: "#FFFFFF",
     },
-    wrapper: {
+    keyboardView: {
         flex: 1,
-        padding: 24,
-        justifyContent: "center",
     },
-    topBar: {
-        alignItems: "center",
-        marginBottom: 12,
+    content: {
+        flex: 1,
+        paddingHorizontal: 32,
+        justifyContent: "center",
+        maxWidth: 440,
+        width: "100%",
+        alignSelf: "center",
+    },
+    iconContainer: {
+        alignSelf: "center",
+        marginBottom: 24,
     },
     title: {
-        fontWeight: "bold",
-        color: "#FFB200",
-        fontSize: 22,
+        fontSize: 28,
+        fontWeight: "700",
+        color: "#111827",
+        textAlign: "center",
+        marginBottom: 12,
+        letterSpacing: -0.5,
     },
     subtitle: {
-        marginBottom: 12,
-        color: "#333",
+        fontSize: 15,
+        color: "#6B7280",
+        textAlign: "center",
+        marginBottom: 32,
+        lineHeight: 22,
     },
-    input: {
-        borderBottomWidth: 1.5,
-        borderBottomColor: "#ff7f50",
-        paddingVertical: 10,
-        fontSize: 16,
+    inputContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F9FAFB",
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        borderRadius: 12,
+        paddingHorizontal: 16,
         marginBottom: 16,
     },
+    inputIcon: {
+        marginRight: 12,
+    },
+    input: {
+        flex: 1,
+        fontSize: 15,
+        color: "#111827",
+        paddingVertical: 16,
+    },
+    messageContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FEE2E2",
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 8,
+        marginBottom: 16,
+        gap: 8,
+    },
+    successContainer: {
+        backgroundColor: "#D1FAE5",
+    },
+    errorText: {
+        color: "#DC2626",
+        fontSize: 14,
+        fontWeight: "500",
+        flex: 1,
+    },
+    successText: {
+        color: "#059669",
+        fontSize: 14,
+        fontWeight: "500",
+        flex: 1,
+    },
     button: {
-        backgroundColor: "#3B141C",
-        padding: 14,
+        backgroundColor: "#FFA500",
+        paddingVertical: 16,
         borderRadius: 12,
         alignItems: "center",
-        marginTop: 4,
+        justifyContent: "center",
+        flexDirection: "row",
+        marginBottom: 16,
+    },
+    buttonDisabled: {
+        opacity: 0.5,
+    },
+    buttonIcon: {
+        marginRight: 8,
     },
     buttonText: {
-        color: "#fff",
-        fontWeight: "600",
+        color: "#FFFFFF",
         fontSize: 16,
+        fontWeight: "600",
     },
-    error: {
-        color: "#B00020",
-        marginBottom: 8,
+    backButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 12,
+        gap: 6,
     },
-    success: {
-        color: "#0E7C0E",
-        marginBottom: 8,
+    backText: {
+        color: "#6B7280",
+        fontSize: 15,
+        fontWeight: "500",
     },
-    back: {
-        marginTop: 16,
-        color: "#3662AA",
-        textAlign: "center",
-    }
-})
+});

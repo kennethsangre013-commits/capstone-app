@@ -1,7 +1,16 @@
-import React from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
-import { StyleSheet, View, Text, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  SafeAreaView,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  Animated,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import { useAuth } from "../../src/context/AuthContext";
 import { useRouter } from "expo-router";
 import { auth, db } from "../../src/firebase";
@@ -11,86 +20,159 @@ import { doc, getDoc } from "firebase/firestore";
 export default function VerifyEmailScreen() {
   const { user, sendVerification, loading, error } = useAuth();
   const router = useRouter();
-  const [message, setMessage] = React.useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  React.useEffect(() => {
-    if (!user) {
-      router.replace("/components/signin");
-    }
+  useEffect(() => {
+    if (!user) router.replace("/components/signin");
   }, [user]);
 
-  const onResend = React.useCallback(async () => {
-    setMessage(null);
+  useEffect(() => {
+    if (error) showMessage(error, "error");
+  }, [error]);
+
+  const showMessage = (text: string, type: "success" | "error") => {
+    setMessage({ text, type });
+    Animated.sequence([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.delay(3000),
+      Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start(() => setMessage(null));
+  };
+
+  const handleResend = async () => {
     try {
       await sendVerification();
-      setMessage("Verification email sent.");
-    } catch {}
-  }, [sendVerification]);
+      showMessage("Verification email sent!", "success");
+    } catch {
+      showMessage("Failed to send email. Try again.", "error");
+    }
+  };
 
-  const onContinue = React.useCallback(async () => {
-    setMessage(null);
+  const handleContinue = async () => {
     if (!auth.currentUser) return;
+    setChecking(true);
     try {
       await reload(auth.currentUser);
-      const u = auth.currentUser;
-      if (u && u.emailVerified) {
-        try {
-          const ref = doc(db, "users", u.uid);
-          const snap = await getDoc(ref);
-          const data = snap.data();
-          const incomplete = !data || !data.address || !data.phone;
-          if (incomplete) {
-            router.replace("/components/complete-profile");
-          } else {
-            router.replace("/(tabs)/home");
-          }
-        } catch {
-          router.replace("/components/complete-profile");
-        }
+      if (auth.currentUser.emailVerified) {
+        const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+        const profileIncomplete = !userDoc.data()?.address || !userDoc.data()?.phone;
+        router.replace(profileIncomplete ? "/components/complete-profile" : "/(tabs)/home");
       } else {
-        setMessage("Not verified yet. Please check your inbox.");
+        Alert.alert("Email Not Verified", "Please check your inbox and spam folder.");
       }
     } catch {
-      setMessage("Failed to refresh status. Try again.");
+      showMessage("Unable to verify status. Please try again.", "error");
+    } finally {
+      setChecking(false);
     }
-  }, [router]);
+  };
 
   if (!user) return null;
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-        <View style={styles.wrapper}>
-          <Text style={styles.title}>Verify your email</Text>
-          <Text style={styles.subtitle}>We sent a verification link to</Text>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View style={styles.content}>
+          <View style={styles.iconBox}>
+            <Text style={styles.icon}>✉️</Text>
+          </View>
+
+          <Text style={styles.title}>Verify Your Email</Text>
+          <Text style={styles.subtitle}>A verification link was sent to</Text>
           <Text style={styles.email}>{user.email}</Text>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          {message ? <Text style={styles.success}>{message}</Text> : null}
+          <Text style={styles.instruction}>Click the link in the email to continue</Text>
 
-          <TouchableOpacity style={[styles.primaryButton, loading && { opacity: 0.7 }]} disabled={loading} onPress={onContinue}>
-            <Text style={styles.primaryText}>{loading ? "Loading..." : "I've verified, continue"}</Text>
+          <TouchableOpacity
+            onPress={handleContinue}
+            disabled={checking || loading}
+            style={[styles.primaryBtn, (checking || loading) && styles.disabledBtn]}
+          >
+            {checking ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryBtnText}>Continue</Text>
+            )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.secondaryButton, loading && { opacity: 0.7 }]} disabled={loading} onPress={onResend}>
-            <Text style={styles.secondaryText}>Resend verification email</Text>
+          <TouchableOpacity
+            onPress={handleResend}
+            disabled={checking || loading}
+            style={[styles.secondaryBtn, (checking || loading) && styles.disabledBtn]}
+          >
+            <Text style={styles.secondaryBtnText}>Resend Email</Text>
           </TouchableOpacity>
+
+          <Text style={styles.note}>
+            Didn't receive it? Check your spam or resend the verification email.
+          </Text>
         </View>
+
+        {message && (
+          <Animated.View
+            style={[
+              styles.toast,
+              message.type === "success" ? styles.success : styles.error,
+              { opacity: fadeAnim },
+            ]}
+          >
+            <Text style={styles.toastText}>{message.text}</Text>
+          </Animated.View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  wrapper: { flex: 1, padding: 24, justifyContent: "center" },
-  title: { fontWeight: "bold", color: "#FFB200", fontSize: 22, textAlign: "center", marginBottom: 8 },
-  subtitle: { textAlign: "center", color: "#333" },
-  email: { textAlign: "center", fontWeight: "600", marginBottom: 12, marginTop: 2 },
-  error: { color: "#B00020", marginTop: 8, textAlign: "center" },
-  success: { color: "#0E7C0E", marginTop: 8, textAlign: "center" },
-  primaryButton: { backgroundColor: "#3B141C", padding: 14, borderRadius: 12, alignItems: "center", marginTop: 16 },
-  primaryText: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  secondaryButton: { alignSelf: "center", backgroundColor: "#DA8D00", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, marginTop: 12 },
-  secondaryText: { color: "#fff", fontWeight: "600" },
+  container: { flex: 1, backgroundColor: "#fff" },
+  content: { flex: 1, justifyContent: "center", paddingHorizontal: 30, paddingBottom: 30 },
+  iconBox: {
+    alignSelf: "center",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#f0f0f0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  icon: { fontSize: 40 },
+  title: { fontSize: 26, fontWeight: "700", textAlign: "center", marginBottom: 8, color: "#222" },
+  subtitle: { fontSize: 16, textAlign: "center", color: "#555" },
+  email: { fontWeight: "600", fontSize: 16, textAlign: "center", marginVertical: 4, color: "#000" },
+  instruction: { fontSize: 14, textAlign: "center", color: "#888", marginBottom: 30 },
+  primaryBtn: {
+    backgroundColor: "#007bff",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  primaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  secondaryBtn: {
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  secondaryBtnText: { color: "#007bff", fontSize: 15, fontWeight: "600" },
+  disabledBtn: { opacity: 0.5 },
+  note: { fontSize: 13, textAlign: "center", color: "#666", marginTop: 20, lineHeight: 18 },
+  toast: {
+    position: "absolute",
+    bottom: 40,
+    left: 20,
+    right: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    elevation: 8,
+  },
+  success: { backgroundColor: "#4caf50" },
+  error: { backgroundColor: "#f44336" },
+  toastText: { color: "#fff", fontWeight: "600", textAlign: "center", fontSize: 14 },
 });

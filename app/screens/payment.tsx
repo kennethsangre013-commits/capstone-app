@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   BackHandler,
   Platform,
+  RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useLocalSearchParams } from "expo-router";
@@ -20,6 +21,15 @@ export default function PaymentScreen() {
   const { rid } = useLocalSearchParams<{ rid?: string }>();
   const exitingRef = useRef(false);
   const navigation = useNavigation();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // No data fetch needed here; keep as a quick no-op.
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -67,6 +77,7 @@ export default function PaymentScreen() {
         style={styles.scrollView} 
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Payment Method Card */}
         <View style={styles.card}>
@@ -118,7 +129,7 @@ export default function PaymentScreen() {
           activeOpacity={0.8}
           onPress={() => router.push(rid ? `/screens/receipt?rid=${rid}` : "/screens/receipt")}
         >
-          <Text style={styles.confirmButtonText}>I've Made the Payment</Text>
+          <Text style={styles.confirmButtonText}>Continue</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

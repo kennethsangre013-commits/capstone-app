@@ -2,9 +2,10 @@ import React from "react";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StyleSheet, ScrollView, View, TextInput, Image, TouchableOpacity, Text, Platform, KeyboardAvoidingView } from "react-native";
+import { StyleSheet, ScrollView, View, TextInput, Image, TouchableOpacity, Text, Platform, KeyboardAvoidingView, BackHandler } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../src/context/AuthContext";
 
 export default function SignupScreen() {
@@ -17,6 +18,8 @@ export default function SignupScreen() {
     const { signUp, loading, error } = useAuth();
     const [localError, setLocalError] = useState<string | null>(null);
     const [passwordScore, setPasswordScore] = React.useState<number>(0);
+    const navigation = useNavigation();
+    const exitingRef = useRef(false);
 
     const getPasswordScore = (pwd: string) => {
         let score = 0;
@@ -40,6 +43,25 @@ export default function SignupScreen() {
         if (score === 3) return { text: "Strong", color: "#10B981" };
         return { text: "Very strong", color: "#059669" };
     };
+
+    useFocusEffect(
+      React.useCallback(() => {
+        if (Platform.OS !== "android") return;
+        const onBackPress = () => {
+          return true;
+        };
+        const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+        return () => sub.remove();
+      }, [])
+    );
+
+    useEffect(() => {
+      const sub = navigation.addListener('beforeRemove', (e: any) => {
+        if (exitingRef.current) return;
+        e.preventDefault();
+      });
+      return sub;
+    }, [navigation]);
 
     return (
         <SafeAreaView style={styles.container}>
@@ -75,7 +97,7 @@ export default function SignupScreen() {
                         <Text style={styles.title}>Create Account</Text>
                                       <TouchableOpacity style={styles.loginButton}>
                                           <Text style={styles.loginText}>Already have an account? </Text>
-                                          <TouchableOpacity onPress={() => router.push("/components/signin")}>
+                                          <TouchableOpacity onPress={() => { exitingRef.current = true; router.push("/components/signin"); }}>
                                               <Text style={styles.loginButtonHighlight}>Sign in</Text>
                                           </TouchableOpacity>
                                       </TouchableOpacity>
@@ -131,6 +153,7 @@ export default function SignupScreen() {
                         }
                         try {
                           await signUp(email.trim(), password);
+                          exitingRef.current = true;
                           router.replace("/components/verify-email" as any);
                         } catch {}
                       }}

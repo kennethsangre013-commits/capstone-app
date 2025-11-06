@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StyleSheet, View, Text, TouchableOpacity, Modal, Platform, ScrollView, KeyboardAvoidingView, TextInput, ActivityIndicator, BackHandler, Image, FlatList, ToastAndroid, TouchableWithoutFeedback, Alert } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Modal, Platform, ScrollView, KeyboardAvoidingView, TextInput, ActivityIndicator, BackHandler, Image, FlatList, ToastAndroid, TouchableWithoutFeedback, Alert, RefreshControl } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useState, useMemo, useEffect, useCallback, memo, useRef } from "react";
 import { useRouter } from "expo-router";
@@ -82,6 +82,7 @@ export default function ReservationScreen() {
   const lastBackPressRef = useRef<number>(0);
   const exitingRef = useRef<boolean>(false);
   const navigation = useNavigation();
+  const [refreshing, setRefreshing] = useState(false);
   
   const visibleDates = useMemo(() => getMonthDates(selectedMonthOffset, Array.from(bookedDateSet)), [selectedMonthOffset, bookedDateSet]);
   const MAX_MONTH_OFFSET = 12;
@@ -198,6 +199,7 @@ export default function ReservationScreen() {
         const userRef = doc(db, "users", user.uid);
         await setDoc(userRef, { phone: mobile || null, address: address || null, updatedAt: serverTimestamp() }, { merge: true });
       }
+      exitingRef.current = true;
       reset();
       router.replace(`/screens/payment?rid=${docRef.id}`);
     } catch (e) {
@@ -234,6 +236,7 @@ export default function ReservationScreen() {
         const userRef = doc(db, "users", user.uid);
         await setDoc(userRef, { phone: mobile || null, address: address || null, updatedAt: serverTimestamp() }, { merge: true });
       }
+      exitingRef.current = true;
       reset();
       router.replace(`/screens/receipt?rid=${docRef.id}`);
     } catch (e) {
@@ -380,7 +383,33 @@ export default function ReservationScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollArea} 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              try {
+                // Reset form state and defaults
+                setSelectedMonthOffset(0);
+                setSelectedDate(new Date());
+                setSelectedTimeLabel(null);
+                setSelectedAddOns([]);
+                setSelectedFoodKeys(new Set());
+                setActiveCategoryId(1);
+                setMobile("");
+                setAddress("");
+                reset();
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+          />
+        }
+      >
         {/* Date Selection */}
         <Section title="Select Date" icon="calendar">
           <View style={styles.monthNav}>

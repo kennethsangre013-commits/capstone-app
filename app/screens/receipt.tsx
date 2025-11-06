@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, BackHandler, Platform } from "react-native";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, BackHandler, Platform, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { db } from "../../src/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -12,6 +12,14 @@ export default function ReceiptScreen() {
   const { rid } = useLocalSearchParams<{ rid?: string }>();
   const [reservation, setReservation] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const exitingRef = useRef(false);
+  const navigation = useNavigation();
+  const [refreshing, setRefreshing] = useState(false);
+  const refetch = useCallback(async () => {
+    if (!rid) return;
+    const snap = await getDoc(doc(db, "reservations", String(rid)));
+    setReservation(snap.exists() ? (snap.data() as any) : null);
+  }, [rid]);
 
   useEffect(() => {
     let mounted = true;
@@ -57,6 +65,8 @@ export default function ReceiptScreen() {
     React.useCallback(() => {
       if (Platform.OS !== "android") return;
       const onBackPress = () => {
+        if (exitingRef.current) return true;
+        exitingRef.current = true;
         router.replace("/(tabs)/home");
         return true;
       };
@@ -65,11 +75,24 @@ export default function ReceiptScreen() {
     }, [router])
   );
 
+  // Intercept any system/gesture back and route to home via replace
+  useEffect(() => {
+    const sub = navigation.addListener('beforeRemove', (e: any) => {
+      if (exitingRef.current) return;
+      e.preventDefault();
+      exitingRef.current = true;
+      router.replace('/(tabs)/home');
+    });
+    return sub;
+  }, [navigation, router]);
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => {
+          if (exitingRef.current) return;
+          exitingRef.current = true;
           router.replace("/(tabs)/home");
         }} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color="#111827" />
@@ -78,7 +101,20 @@ export default function ReceiptScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollArea} 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={async () => {
+              setRefreshing(true);
+              try { await refetch(); } finally { setRefreshing(false); }
+            }} 
+          />
+        }
+      >
         {/* Success Banner */}
         <View style={styles.successBanner}>
           <View style={styles.successIconContainer}>
@@ -153,7 +189,11 @@ export default function ReceiptScreen() {
         </View>
 
         {/* Action Button */}
-        <TouchableOpacity style={styles.homeButton} onPress={() => router.push("/(tabs)/home")} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.homeButton} onPress={() => {
+          if (exitingRef.current) return;
+          exitingRef.current = true;
+          router.replace("/(tabs)/home");
+        }} activeOpacity={0.8}>
           <Text style={styles.homeButtonText}>Back to Home</Text>
         </TouchableOpacity>
 

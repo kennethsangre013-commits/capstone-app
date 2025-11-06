@@ -11,12 +11,14 @@ import {
   TouchableOpacity,
   View,
   Platform,
+  BackHandler,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
 import { db, auth } from "../../src/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 export default function SigninScreen() {
   const [email, setEmail] = React.useState("");
@@ -24,6 +26,29 @@ export default function SigninScreen() {
   const [passwordIsVisible, setPasswordIsVisible] = React.useState(false);
   const router = useRouter();
   const { signIn, loading, error } = useAuth();
+  const navigation = useNavigation();
+  const exitingRef = React.useRef(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (Platform.OS !== "android") return;
+      const onBackPress = () => {
+        // Block going back into previous (possibly protected) screens
+        return true;
+      };
+      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => sub.remove();
+    }, [])
+  );
+
+  React.useEffect(() => {
+    const sub = navigation.addListener('beforeRemove', (e: any) => {
+      if (exitingRef.current) return;
+      // Prevent leaving Sign In via back/gesture into prior stack
+      e.preventDefault();
+    });
+    return sub;
+  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -63,7 +88,7 @@ export default function SigninScreen() {
 
             <View style={styles.registerButton}>
               <Text style={styles.registerText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={() => router.push("/components/signup")}>
+              <TouchableOpacity onPress={() => { exitingRef.current = true; router.push("/components/signup"); }}>
                 <Text style={styles.registerButtonHighlight}>Sign Up</Text>
               </TouchableOpacity>
             </View>
@@ -109,7 +134,7 @@ export default function SigninScreen() {
               <Text style={styles.errorText}>{error}</Text>
             ) : null}
 
-            <TouchableOpacity style={styles.forgotPasswordButton} onPress={() => router.push("/components/forgot-password")}>
+            <TouchableOpacity style={styles.forgotPasswordButton} onPress={() => { exitingRef.current = true; router.push("/components/forgot-password"); }}>
               <Text style={styles.forgotText}>Forgot Password?</Text>
             </TouchableOpacity>
 
@@ -121,6 +146,7 @@ export default function SigninScreen() {
                   await signIn(email.trim(), password);
                   const u = auth.currentUser;
                   if (u && !u.emailVerified) {
+                    exitingRef.current = true;
                     router.replace("/components/verify-email" as any);
                     return;
                   }
@@ -132,14 +158,18 @@ export default function SigninScreen() {
                       const data = snap.data();
                       const incomplete = !data || !data.address || !data.phone;
                       if (incomplete) {
+                        exitingRef.current = true;
                         router.replace("/components/complete-profile");
                       } else {
+                        exitingRef.current = true;
                         router.replace("/(tabs)/home");
                       }
                     } catch {
+                      exitingRef.current = true;
                       router.replace("/components/complete-profile");
                     }
                   } else {
+                    exitingRef.current = true;
                     router.replace("/(tabs)/home");
                   }
                 } catch {}

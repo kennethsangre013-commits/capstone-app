@@ -24,8 +24,8 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
    -- install deps and packages
    yarn install
-   yarn install <packagename>
-   
+   yarn add <packagename>
+
    optional for expo:
    npx expo install
 
