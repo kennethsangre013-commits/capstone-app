@@ -5,17 +5,15 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
-  Dimensions,
+  ScrollView,
   BackHandler,
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-
-const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 export default function PaymentScreen() {
   const router = useRouter();
@@ -23,7 +21,6 @@ export default function PaymentScreen() {
   const exitingRef = useRef(false);
   const navigation = useNavigation();
 
-  // Handle hardware back button
   useFocusEffect(
     React.useCallback(() => {
       if (Platform.OS !== "android") return;
@@ -38,7 +35,6 @@ export default function PaymentScreen() {
     }, [router])
   );
 
-  // Intercept any back (gesture/system) and route to home
   useEffect(() => {
     const sub = navigation.addListener('beforeRemove', (e: any) => {
       if (exitingRef.current) return;
@@ -51,82 +47,80 @@ export default function PaymentScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header / TabBar */}
+      {/* Header */}
       <View style={styles.header}>
-        <Ionicons
-          name="chevron-back"
-          size={Math.round(screenWidth * 0.065)}
-          color="#FFA500"
-          style={styles.backButton}
+        <TouchableOpacity
           onPress={() => {
             if (exitingRef.current) return;
             exitingRef.current = true;
             router.replace("/(tabs)/home");
           }}
-        />
-        <Text style={styles.headerTitle}>Payment Confirmation</Text>
-        <View style={{ width: Math.round(screenWidth * 0.065) }} />
+          style={styles.backButton}
+        >
+          <MaterialCommunityIcons name="chevron-left" size={24} color="#111827" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Payment</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      {/* Main Content */}
-      <View style={styles.content}>
-        {/* Payment Info Card */}
-        <View style={[styles.paymentCard, { maxWidth: Math.min(screenWidth * 0.95, 420) }]}>
-          <Text style={styles.paymentTitle}>Payment Method</Text>
-          <View style={styles.paymentRow}>
-            <Ionicons name="wallet-outline" size={Math.round(screenWidth * 0.055)} color="#FFA500" />
-            <Text style={styles.paymentType}>Gcash</Text>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Payment Method Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <MaterialCommunityIcons name="wallet" size={24} color="#FFA500" />
+            <Text style={styles.cardTitle}>Payment Method</Text>
           </View>
-          <Text style={styles.paymentNumber}>09xxxxxxxxx</Text>
+          <Text style={styles.methodName}>GCash</Text>
+          <Text style={styles.accountNumber}>09xxxxxxxxx</Text>
         </View>
 
-        {/* QR Image Section */}
-        <View style={styles.imageContainer}>
-          <View style={styles.qrShadow}>
+        {/* QR Code Section */}
+        <View style={styles.qrSection}>
+          <View style={styles.qrContainer}>
             <Image
               source={require("../../assets/images/qr-sample.jpg")}
-              style={{
-                width: Math.min(screenWidth * 0.55, 210),
-                height: Math.min(screenWidth * 0.55, 210),
-                borderRadius: 15,
-                backgroundColor: "#FFFDFC",
-              }}
+              style={styles.qrImage}
               resizeMode="contain"
             />
           </View>
-          <Text style={styles.scanText}>
-            Scan this QR code with your Gcash app to pay your reservation fee
+          <Text style={styles.qrInstruction}>
+            Scan this QR code using your GCash app
           </Text>
         </View>
 
-        {/* Separator */}
-        <View style={[styles.separator, { width: Math.max(screenWidth * 0.7, 240) }]} />
-
-        {/* Note Section */}
-        <View style={[styles.noteContainer, { maxWidth: Math.min(screenWidth * 0.93, 410) }]}>
-          <Text style={styles.noteTitle}>Down Payment Confirmation Note:</Text>
+        {/* Important Note */}
+        <View style={styles.noteCard}>
+          <View style={styles.noteHeader}>
+            <MaterialCommunityIcons name="information" size={20} color="#F59E0B" />
+            <Text style={styles.noteTitle}>Important</Text>
+          </View>
           <Text style={styles.noteText}>
-            To secure your catering reservation, a <Text style={styles.highlight}>30% down payment</Text> is required. Your booking will only be confirmed once payment is successfully processed.
-            {"\n\n"}
-            <Text style={styles.warning}>Unpaid reservations may be automatically cancelled.</Text>
+            A <Text style={styles.boldText}>30% down payment</Text> is required to confirm your reservation.
           </Text>
+          <Text style={[styles.noteText, { marginTop: 8 }]}>
+            Your booking will be confirmed once payment is received.
+          </Text>
+          <View style={styles.warningBox}>
+            <MaterialCommunityIcons name="alert-circle" size={16} color="#DC2626" />
+            <Text style={styles.warningText}>
+              Unpaid reservations may be cancelled
+            </Text>
+          </View>
         </View>
 
+        {/* Confirm Button */}
         <TouchableOpacity
-          style={[
-            styles.doneButton,
-            {
-              paddingHorizontal: Math.max(screenWidth * 0.12, 36),
-              maxWidth: Math.min(screenWidth * 0.8, 330),
-            },
-          ]}
-          activeOpacity={0.88}
+          style={styles.confirmButton}
+          activeOpacity={0.8}
           onPress={() => router.push(rid ? `/screens/receipt?rid=${rid}` : "/screens/receipt")}
         >
-          <Ionicons name="checkmark" size={Math.round(screenWidth * 0.055)} color="#fff" />
-          <Text style={styles.doneText}>Confirm Payment</Text>
+          <Text style={styles.confirmButtonText}>I've Made the Payment</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -134,150 +128,147 @@ export default function PaymentScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAF6F1",
+    backgroundColor: "#F9FAFB",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 12,
-    backgroundColor: "#FFF",
+    paddingVertical: 16,
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#EEE",
-    elevation: 3,
+    borderBottomColor: "#E5E7EB",
   },
   backButton: {
-    marginRight: 2,
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
-    fontSize: 19,
-    fontWeight: "700",
-    color: "#FFA500",
-    letterSpacing: 0.15,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  scrollView: {
+    flex: 1,
   },
   content: {
-    flex: 1,
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingTop: 26,
-    position: "relative",
+    padding: 20,
+    paddingBottom: 40,
   },
-  paymentCard: {
-    width: "100%",
-    backgroundColor: "#FFF",
-    borderRadius: 17,
-    padding: 17,
-    shadowColor: "#FFA500",
-    shadowOpacity: 0.10,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 12,
-    elevation: 3,
-    marginBottom: 28,
-    alignItems: "flex-start",
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  paymentTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#86582F",
-    marginBottom: 8,
-  },
-  paymentRow: {
+  cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 16,
+    gap: 12,
   },
-  paymentType: {
-    fontSize: 16,
-    color: "#FFA500",
+  cardTitle: {
+    fontSize: 14,
     fontWeight: "600",
-    marginLeft: 8,
+    color: "#6B7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  paymentNumber: {
+  methodName: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  accountNumber: {
     fontSize: 15,
-    color: "#987A50",
-    marginLeft: 31,
-    marginTop: 2,
-    letterSpacing: 0.15,
-  },
-  imageContainer: {
-    alignItems: "center",
-    marginBottom: 25,
-    width: "100%",
-  },
-  qrShadow: {
-    shadowColor: "#FFA500",
-    shadowOpacity: 0.22,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 17,
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 13,
-  },
-  scanText: {
-    fontSize: 14,
-    color: "#86582F",
-    marginTop: 12,
-    textAlign: "center",
+    color: "#6B7280",
     fontWeight: "500",
-    letterSpacing: 0.07,
   },
-  separator: {
-    height: 1.4,
-    backgroundColor: "#EED5AB",
-    marginVertical: 22,
-    marginTop: 15,
+  qrSection: {
+    alignItems: "center",
+    marginBottom: 24,
   },
-  noteContainer: {
-    backgroundColor: "#FFF7DD",
-    padding: 15,
-    borderRadius: 14,
-    borderLeftWidth: 4,
-    borderLeftColor: "#FFA500",
-    width: "100%",
-    marginBottom: 40,
-    marginTop: -10,
-    elevation: 2,
+  qrContainer: {
+    backgroundColor: "#FFFFFF",
+    padding: 20,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    marginBottom: 16,
   },
-  noteTitle: {
-    fontWeight: "700",
-    color: "#86582F",
-    marginBottom: 7,
-    letterSpacing: 0.07,
-    fontSize: 15,
+  qrImage: {
+    width: 200,
+    height: 200,
   },
-  highlight: {
-    color: "#FFA500",
-    fontWeight: "700",
-  },
-  warning: {
-    color: "#E53935",
-    fontWeight: "700",
-  },
-  noteText: {
-    color: "#6C5B41",
+  qrInstruction: {
     fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
     lineHeight: 20,
   },
-  doneButton: {
-    position: "relative",
-    marginTop: -20,
-    backgroundColor: "#FFA500",
-    paddingVertical: 15,
-    borderRadius: 16,
+  noteCard: {
+    backgroundColor: "#FFFBEB",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: "#F59E0B",
+  },
+  noteHeader: {
     flexDirection: "row",
     alignItems: "center",
-    elevation: 4,
-    shadowColor: "#FFA500",
-    shadowOpacity: 0.13,
+    marginBottom: 12,
+    gap: 8,
   },
-  doneText: {
-    color: "#fff",
-    fontSize: 16,
+  noteTitle: {
+    fontSize: 15,
     fontWeight: "700",
-    marginLeft: 7,
-    letterSpacing: 0.12,
-    textAlign: "center",
+    color: "#92400E",
+  },
+  noteText: {
+    fontSize: 14,
+    color: "#78350F",
+    lineHeight: 20,
+  },
+  boldText: {
+    fontWeight: "700",
+    color: "#F59E0B",
+  },
+  warningBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#FDE68A",
+    gap: 6,
+  },
+  warningText: {
+    fontSize: 13,
+    color: "#DC2626",
+    fontWeight: "600",
+  },
+  confirmButton: {
+    backgroundColor: "#FFA500",
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  confirmButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
