@@ -9,27 +9,57 @@ import {
   BackHandler,
   Platform,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useLocalSearchParams } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { db } from "../../src/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function PaymentScreen() {
   const router = useRouter();
-  const { rid } = useLocalSearchParams<{ rid?: string }>();
+  const { data: dataParam } = useLocalSearchParams<{ data?: string }>();
   const exitingRef = useRef(false);
   const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
+  const [reservation, setReservation] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    try {
+      if (dataParam) {
+        const parsedData = JSON.parse(decodeURIComponent(dataParam));
+        setReservation(parsedData);
+      }
+    } catch (error) {
+      console.error("Error parsing reservation data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [dataParam]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      // No data fetch needed here; keep as a quick no-op.
+      // Re-parse data if needed
+      if (dataParam) {
+        const parsedData = JSON.parse(decodeURIComponent(dataParam));
+        setReservation(parsedData);
+      }
+    } catch (error) {
+      console.error("Error refreshing data:", error);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [dataParam]);
+
+  const downpayment = reservation?.downpayment || 0;
+  const packagePriceNum = reservation?.packagePriceNum || 0;
+  const addOnsTotal = reservation?.addOnsTotal || 0;
+  const totalAmount = reservation?.totalAmount || 0;
 
   useFocusEffect(
     React.useCallback(() => {
@@ -86,7 +116,6 @@ export default function PaymentScreen() {
             <Text style={styles.cardTitle}>Payment Method</Text>
           </View>
           <Text style={styles.methodName}>GCash</Text>
-          <Text style={styles.accountNumber}>09xxxxxxxxx</Text>
         </View>
 
         {/* QR Code Section */}
@@ -99,18 +128,50 @@ export default function PaymentScreen() {
             />
           </View>
           <Text style={styles.qrInstruction}>
-            Scan this QR code using your GCash app
+            Scan this QR code using your GCash or E-Wallet
           </Text>
         </View>
+
+        {/* Payment Amount Card */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#FFA500" />
+          </View>
+        ) : (
+          <View style={styles.amountCard}>
+            <Text style={styles.amountLabel}>Downpayment Amount (50%)</Text>
+            <Text style={styles.amountValue}>₱{downpayment.toLocaleString()}</Text>
+            <View style={styles.amountBreakdown}>
+              <View style={styles.breakdownRow}>
+                <Text style={styles.breakdownLabel}>Package Price:</Text>
+                <Text style={styles.breakdownValue}>₱{packagePriceNum.toLocaleString()}</Text>
+              </View>
+              <View style={styles.breakdownRow}>
+                <Text style={styles.breakdownLabel}>Remaining Balance:</Text>
+                <Text style={styles.breakdownValue}>₱{(packagePriceNum - downpayment).toLocaleString()}</Text>
+              </View>
+              {addOnsTotal > 0 && (
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>Add-ons:</Text>
+                  <Text style={styles.breakdownValue}>₱{addOnsTotal.toLocaleString()}</Text>
+                </View>
+              )}
+              <View style={[styles.breakdownRow, styles.totalBreakdownRow]}>
+                <Text style={styles.totalBreakdownLabel}>Total Event Cost:</Text>
+                <Text style={styles.totalBreakdownValue}>₱{totalAmount.toLocaleString()}</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Important Note */}
         <View style={styles.noteCard}>
           <View style={styles.noteHeader}>
             <MaterialCommunityIcons name="information" size={20} color="#F59E0B" />
-            <Text style={styles.noteTitle}>Important</Text>
+            <Text style={styles.noteTitle}>Notice</Text>
           </View>
           <Text style={styles.noteText}>
-            A <Text style={styles.boldText}>30% down payment</Text> is required to confirm your reservation.
+            A <Text style={styles.boldText}>50% downpayment</Text> is required to confirm your reservation.
           </Text>
           <Text style={[styles.noteText, { marginTop: 8 }]}>
             Your booking will be confirmed once payment is received.
@@ -118,7 +179,7 @@ export default function PaymentScreen() {
           <View style={styles.warningBox}>
             <MaterialCommunityIcons name="alert-circle" size={16} color="#DC2626" />
             <Text style={styles.warningText}>
-              Unpaid reservations may be cancelled
+              Unpaid reservations can't accommodate your event.
             </Text>
           </View>
         </View>
@@ -127,7 +188,13 @@ export default function PaymentScreen() {
         <TouchableOpacity
           style={styles.confirmButton}
           activeOpacity={0.8}
-          onPress={() => router.push(rid ? `/screens/receipt?rid=${rid}` : "/screens/receipt")}
+          onPress={() => {
+            if (dataParam) {
+              router.push(`/screens/receipt?data=${dataParam}`);
+            } else {
+              router.push("/screens/receipt");
+            }
+          }}
         >
           <Text style={styles.confirmButtonText}>Continue</Text>
         </TouchableOpacity>
@@ -198,6 +265,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
     marginBottom: 4,
+    textAlign: "center",
   },
   accountNumber: {
     fontSize: 15,
@@ -229,8 +297,77 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
   },
+  loadingContainer: {
+    padding: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  amountCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 24,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: "#059669",
+  },
+  amountLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  amountValue: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: "#059669",
+    marginBottom: 16,
+  },
+  amountBreakdown: {
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  breakdownRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  breakdownLabel: {
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  breakdownValue: {
+    fontSize: 13,
+    color: "#111827",
+    fontWeight: "600",
+  },
+  totalBreakdownRow: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  totalBreakdownLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  totalBreakdownValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFA500",
+  },
   noteCard: {
-    backgroundColor: "#FFFBEB",
+    backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
     marginBottom: 24,
@@ -250,12 +387,12 @@ const styles = StyleSheet.create({
   },
   noteText: {
     fontSize: 14,
-    color: "#78350F",
+    color: "#000",
     lineHeight: 20,
   },
   boldText: {
     fontWeight: "700",
-    color: "#F59E0B",
+    color: "green",
   },
   warningBox: {
     flexDirection: "row",
@@ -272,14 +409,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   confirmButton: {
-    backgroundColor: "#FFA500",
+    backgroundColor: "#fff",
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
   },
   confirmButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
+    color: "#000",
+    fontSize: 20,
     fontWeight: "600",
   },
 });

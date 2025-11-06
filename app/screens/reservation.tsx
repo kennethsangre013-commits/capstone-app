@@ -38,7 +38,11 @@ function getMonthDates(monthOffset: number, disabled: string[]) {
   return dates;
 }
 
-const occasionOptions = ["Kiddie Party", "Christening", "Adult Birthday", "Debut", "Wedding", "Corporate Gathering", "House Blessing"];
+// Get unique occasion types from data1.json
+export const occasionOptions = Array.from(new Set(pkgData
+  .filter(item => !['Inclusions', 'Freebies', 'Add-ons'].includes(item.name))
+  .map(item => item.name)
+));
 const timeOptions: { label: string; h: number; m: number }[] = [
   { label: "10:00 AM", h: 10, m: 0 },
   { label: "11:00 AM", h: 11, m: 0 },
@@ -47,18 +51,34 @@ const timeOptions: { label: string; h: number; m: number }[] = [
   { label: "6:00 PM", h: 18, m: 0 },
   { label: "7:00 PM", h: 19, m: 0 },
 ];
-const packOptions = [
-  { name: "100 Pax", price: "₱35,000" },
-  { name: "70 Pax", price: "₱30,000" },
-  { name: "50 Pax", price: "₱25,000"},
-  { name: "30 Pax", price: "₱20,000"},
-];
-const addOnOptions: { name: string; price: string }[] = [
-  { name: "Personalized Cake", price: "₱500" },
-  { name: "Event Coordinator", price: "₱1,000" },
-  { name: "Projector with slideshow", price: "₱800" },
-  { name: "Smoke Machine", price: "₱350"},
-  { name: "Chocolate Fountain", price: "₱1,500" },
+// Get pack options based on selected occasion
+const getPackOptions = (occasion: string) => {
+  const occasionData = pkgData.find(pkg => 
+    occasion.toLowerCase().includes(pkg.name.toLowerCase()) || 
+    pkg.name.toLowerCase().includes(occasion.toLowerCase())
+  );
+  
+  // Default pack options if no matching occasion is found
+  if (!occasionData) {
+    return [
+      { name: "100 Pax", price: "₱35,000" },
+      { name: "70 Pax", price: "₱30,000" },
+      { name: "50 Pax", price: "₱25,000" },
+      { name: "30 Pax", price: "₱20,000" },
+    ];
+  }
+  
+  return occasionData.prices.map(priceStr => {
+    const [pax, price] = priceStr.split(' = ');
+    return { name: pax, price };
+  });
+};
+const addOnOptions: { name: string; price: number }[] = [
+  { name: "Personalized Cake", price: 500 },
+  { name: "Event Coordinator", price: 1000 },
+  { name: "Projector with slideshow", price: 800 },
+  { name: "Smoke Machine", price: 350 },
+  { name: "Chocolate Fountain", price: 1500 },
 ];
 
 export default function ReservationScreen() {
@@ -69,12 +89,57 @@ export default function ReservationScreen() {
   const [isHandlingBack, setIsHandlingBack] = useState(false);
   const router = useRouter();
   const { data, setDate, setOccasions, setFoods, setPack, setVenue, reset } = useReservation();
+  
+  // Track the current occasion for pack options
+  const [currentOccasion, setCurrentOccasion] = useState<string>(occasionOptions[0]);
+  
+  // Update current occasion when occasions change
+  useEffect(() => {
+    if (data.occasions.length > 0) {
+      setCurrentOccasion(data.occasions[0]);
+    } else {
+      setCurrentOccasion(occasionOptions[0]);
+    }
+  }, [data.occasions]);
+  
+  // Get pack options based on current occasion
+  const packOptions = useMemo(() => {
+    if (!currentOccasion) return [];
+    
+    // Find the occasion data that matches the current occasion
+    // This handles case-insensitive matching and partial matches
+    const occasionData = pkgData.find(item => 
+      item.name.toLowerCase() === currentOccasion.toLowerCase() ||
+      currentOccasion.toLowerCase().includes(item.name.toLowerCase()) ||
+      item.name.toLowerCase().includes(currentOccasion.toLowerCase())
+    );
+    
+    if (!occasionData || !occasionData.prices) return [];
+    
+    // Process the prices array to extract pax and price
+    return occasionData.prices.map(priceStr => {
+      // Handle different possible formats in the price string
+      const [pax, ...priceParts] = priceStr.split('=').map(s => s.trim());
+      const price = priceParts.join('=').trim();
+      
+      // Extract numeric value for calculations
+      const numericValue = parseInt(price.replace(/[^0-9]/g, '')) || 0;
+      
+      return { 
+        name: pax, 
+        price: price.startsWith('₱') ? price : `₱${price.replace(/[^0-9]/g, '')}`,
+        numericValue
+      };
+    });
+  }, [currentOccasion]);
   const { user } = useAuth();
   const [mobile, setMobile] = useState<string>(data.venue?.mobile || "");
   const [address, setAddress] = useState<string>(data.venue?.address || "");
   const [activeCategoryId, setActiveCategoryId] = useState<number>(1);
   const [selectedFoodKeys, setSelectedFoodKeys] = useState<Set<string>>(new Set());
-  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
+  const [selectedAddOns, setSelectedAddOns] = useState<{ name: string; price: number }[]>([]);
+  const [beefPorkSelection, setBeefPorkSelection] = useState<string | null>(null);
+  const [pastaVeggiesSelection, setPastaVeggiesSelection] = useState<string | null>(null);
   const [selectedTimeLabel, setSelectedTimeLabel] = useState<string | null>(null);
   const [selectedMonthOffset, setSelectedMonthOffset] = useState<number>(0);
   const [bookedDateSet, setBookedDateSet] = useState<Set<string>>(new Set());
@@ -92,10 +157,33 @@ export default function ReservationScreen() {
     return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   }, [selectedMonthOffset]);
 
-  const toggleOccasion = useCallback((o: string) => {
-    const next = data.occasions.includes(o) ? data.occasions.filter((x) => x !== o) : [...data.occasions, o];
-    setOccasions(next);
-  }, [data.occasions, setOccasions]);
+  // Single selection for occasion
+  const selectOccasion = useCallback((o: string) => {
+    // If the same occasion is selected, deselect it
+    if (data.occasions[0] === o) {
+      setOccasions([]);
+      setCurrentOccasion(occasionOptions[0]);
+      setPack(null);
+    } else {
+      // Select the new occasion (single selection only)
+      setOccasions([o]);
+      setCurrentOccasion(o);
+      setPack(null); // Reset pack when changing occasion
+      
+      // Force update the pack options by toggling the current occasion
+      // This ensures the options are refreshed with the new occasion data
+      const occasionData = pkgData.find(item => 
+        item.name.toLowerCase() === o.toLowerCase() ||
+        o.toLowerCase().includes(item.name.toLowerCase()) ||
+        item.name.toLowerCase().includes(o.toLowerCase())
+      );
+      
+      if (occasionData) {
+        console.log('Selected occasion:', o);
+        console.log('Available packages:', occasionData.prices);
+      }
+    }
+  }, [data.occasions, setOccasions, setPack]);
 
   const showCancelAlert = useCallback(() => {
     if (exitingRef.current) return;
@@ -119,7 +207,7 @@ export default function ReservationScreen() {
   }, [reset, router]);
 
   const selectPack = useCallback((p: { name: string; price: string }) => {
-    setPack(data.pack?.name === p.name ? null : p);
+    setPack(data.pack?.name === p.name ? null : { name: p.name, price: p.price });
   }, [data.pack?.name, setPack]);
 
   const selectTime = useCallback((opt: { label: string; h: number; m: number }) => {
@@ -129,8 +217,11 @@ export default function ReservationScreen() {
     setSelectedTimeLabel(opt.label);
   }, [selectedDate]);
 
-  const toggleAddOn = useCallback((name: string) => {
-    setSelectedAddOns((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
+  const toggleAddOn = useCallback((addon: { name: string; price: number }) => {
+    setSelectedAddOns((prev) => {
+      const exists = prev.find(a => a.name === addon.name);
+      return exists ? prev.filter((a) => a.name !== addon.name) : [...prev, addon];
+    });
   }, []);
 
   const foodKey = useCallback((item: FoodItem) => `${item.categoryId}:${item.name}`, []);
@@ -140,19 +231,61 @@ export default function ReservationScreen() {
   }, [selectedFoodKeys]);
   
   const toggleFoodItem = useCallback((item: FoodItem) => {
+    const key = `${item.categoryId}:${item.name}`;
+    
     setSelectedFoodKeys((prev) => {
       const next = new Set<string>(prev);
-      const key = `${item.categoryId}:${item.name}`;
-      const catPrefix = `${item.categoryId}:`;
-      for (const k of Array.from(next)) {
-        if (k.startsWith(catPrefix)) next.delete(k);
+      const wasSelected = prev.has(key);
+      
+      // Handle merged categories: Beef (1) & Pork (2) as one group
+      if (item.categoryId === 1 || item.categoryId === 2) {
+        // Remove any existing beef or pork selection
+        for (const k of Array.from(next)) {
+          if (k.startsWith('1:') || k.startsWith('2:')) next.delete(k);
+        }
+        // Add new selection if it wasn't already selected
+        if (!wasSelected) {
+          next.add(key);
+        }
       }
-      if (!prev.has(key)) next.add(key);
+      // Handle merged categories: Pasta (5) & Veggies (6) as one group
+      else if (item.categoryId === 5 || item.categoryId === 6) {
+        // Remove any existing pasta or veggies selection
+        for (const k of Array.from(next)) {
+          if (k.startsWith('5:') || k.startsWith('6:')) next.delete(k);
+        }
+        // Add new selection if it wasn't already selected
+        if (!wasSelected) {
+          next.add(key);
+        }
+      }
+      // Handle other categories normally (one per category)
+      else {
+        const catPrefix = `${item.categoryId}:`;
+        for (const k of Array.from(next)) {
+          if (k.startsWith(catPrefix)) next.delete(k);
+        }
+        if (!wasSelected) next.add(key);
+      }
+      
       const names = Array.from(next).map((k) => k.slice(k.indexOf(":") + 1));
       setFoods(names);
       return next;
     });
-  }, [setFoods]);
+    
+    // Update selection labels after state update
+    if (item.categoryId === 1 || item.categoryId === 2) {
+      setBeefPorkSelection((prev) => {
+        const wasSelected = selectedFoodKeys.has(key);
+        return wasSelected ? null : item.name;
+      });
+    } else if (item.categoryId === 5 || item.categoryId === 6) {
+      setPastaVeggiesSelection((prev) => {
+        const wasSelected = selectedFoodKeys.has(key);
+        return wasSelected ? null : item.name;
+      });
+    }
+  }, [setFoods, selectedFoodKeys]);
 
   const filteredFoods = useMemo(() => foods.filter((f) => f.categoryId === activeCategoryId), [activeCategoryId]);
 
@@ -167,10 +300,33 @@ export default function ReservationScreen() {
 
   const isFormValid = useMemo(() => {
     const hasDate = !!data.date;
+    const hasOccasion = data.occasions.length > 0;
     const hasPack = !!data.pack;
     const hasVenue = mobile.trim().length >= 8 && address.trim().length >= 5;
-    return hasDate && hasPack && hasVenue;
-  }, [data.date, data.pack, mobile, address]);
+    return hasDate && hasOccasion && hasPack && hasVenue;
+  }, [data.date, data.occasions, data.pack, mobile, address]);
+
+  // Calculate package price as number
+  const packagePrice = useMemo(() => {
+    if (!data.pack?.price) return 0;
+    const priceStr = data.pack.price.replace(/[^0-9]/g, '');
+    return parseInt(priceStr) || 0;
+  }, [data.pack?.price]);
+
+  // Calculate add-ons total
+  const addOnsTotal = useMemo(() => {
+    return selectedAddOns.reduce((sum, addon) => sum + addon.price, 0);
+  }, [selectedAddOns]);
+
+  // Calculate downpayment (50% of package only)
+  const downpayment = useMemo(() => {
+    return Math.round(packagePrice * 0.5);
+  }, [packagePrice]);
+
+  // Calculate total (full package + add-ons)
+  const totalAmount = useMemo(() => {
+    return packagePrice + addOnsTotal;
+  }, [packagePrice, addOnsTotal]);
 
   const handleConfirm = useCallback(async () => {
     if (!user) {
@@ -180,33 +336,41 @@ export default function ReservationScreen() {
     if (!data.date || !data.pack) return;
     try {
       setSaving(true);
-      const payload = {
+      // Prepare reservation data to pass to payment screen
+      const reservationData = {
         userId: user.uid,
         userEmail: user.email || null,
-        date: data.date,
+        date: data.date.toISOString(),
         occasions: data.occasions || [],
         foods: data.foods || [],
         packName: data.pack?.name || null,
         packPrice: data.pack?.price || null,
         venue: { mobile, address },
-        status: "pending",
-        createdAt: serverTimestamp(),
         addons: selectedAddOns,
         timeLabel: selectedTimeLabel,
+        packagePriceNum: packagePrice,
+        addOnsTotal: addOnsTotal,
+        downpayment: downpayment,
+        totalAmount: totalAmount,
+        paymentMethod: "GCash",
       };
-      const docRef = await addDoc(collection(db, "reservations"), payload);
+      
+      // Save user contact info
       if (mobile || address) {
         const userRef = doc(db, "users", user.uid);
         await setDoc(userRef, { phone: mobile || null, address: address || null, updatedAt: serverTimestamp() }, { merge: true });
       }
+      
       exitingRef.current = true;
       reset();
-      router.replace(`/screens/payment?rid=${docRef.id}`);
+      // Pass data as encoded JSON in route params
+      router.replace(`/screens/payment?data=${encodeURIComponent(JSON.stringify(reservationData))}`);
     } catch (e) {
+      console.error("Error preparing reservation:", e);
     } finally {
       setSaving(false);
     }
-  }, [user, data.date, data.pack, data.occasions, data.foods, mobile, address, selectedAddOns, selectedTimeLabel, router, reset]);
+  }, [user, data.date, data.pack, data.occasions, data.foods, mobile, address, selectedAddOns, selectedTimeLabel, packagePrice, addOnsTotal, downpayment, totalAmount, router, reset]);
 
   const handleConfirmOverCounter = useCallback(async () => {
     if (!user) {
@@ -216,34 +380,41 @@ export default function ReservationScreen() {
     if (!data.date || !data.pack) return;
     try {
       setSaving(true);
-      const payload = {
+      // Prepare reservation data to pass to receipt screen
+      const reservationData = {
         userId: user.uid,
         userEmail: user.email || null,
-        date: data.date,
+        date: data.date.toISOString(),
         occasions: data.occasions || [],
         foods: data.foods || [],
         packName: data.pack?.name || null,
         packPrice: data.pack?.price || null,
         venue: { mobile, address },
-        status: "pending",
-        createdAt: serverTimestamp(),
         addons: selectedAddOns,
         timeLabel: selectedTimeLabel,
         paymentMethod: "Over the Counter",
+        packagePriceNum: packagePrice,
+        addOnsTotal: addOnsTotal,
+        downpayment: downpayment,
+        totalAmount: totalAmount,
       };
-      const docRef = await addDoc(collection(db, "reservations"), payload);
+      
+      // Save user contact info
       if (mobile || address) {
         const userRef = doc(db, "users", user.uid);
         await setDoc(userRef, { phone: mobile || null, address: address || null, updatedAt: serverTimestamp() }, { merge: true });
       }
+      
       exitingRef.current = true;
       reset();
-      router.replace(`/screens/receipt?rid=${docRef.id}`);
+      // Pass data as encoded JSON in route params
+      router.replace(`/screens/receipt?data=${encodeURIComponent(JSON.stringify(reservationData))}`);
     } catch (e) {
+      console.error("Error preparing reservation:", e);
     } finally {
       setSaving(false);
     }
-  }, [user, data.date, data.pack, data.occasions, data.foods, mobile, address, selectedAddOns, selectedTimeLabel, router, reset]);
+  }, [user, data.date, data.pack, data.occasions, data.foods, mobile, address, selectedAddOns, selectedTimeLabel, packagePrice, addOnsTotal, downpayment, totalAmount, router, reset]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -468,7 +639,7 @@ export default function ReservationScreen() {
                 key={o} 
                 label={o} 
                 active={data.occasions.includes(o)}
-                onPress={() => toggleOccasion(o)}
+                onPress={() => selectOccasion(o)}
               />
             ))}
           </View>
@@ -518,46 +689,70 @@ export default function ReservationScreen() {
 
         {/* Package Selection */}
         <Section title="Select Package" icon="package-variant">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.packageList}>
-            {packOptions.map((p) => {
-              const selected = data.pack?.name === p.name;
-              return (
-                <TouchableOpacity
-                  key={p.name}
-                  style={[styles.packageCard, selected && styles.packageCardSelected]}
-                  onPress={() => selectPack(p)}
-                  activeOpacity={0.9}
-                >
-                  {selected && (
-                    <View style={styles.packageCheck}>
-                      <MaterialCommunityIcons name="check-circle" size={24} color="#FFA500" />
-                    </View>
-                  )}
-                  <Text style={styles.packageName}>{p.name}</Text>
-                  <Text style={styles.packagePrice}>{p.price}</Text>
-                  <TouchableOpacity onPress={() => setShowFreebiesModal(true)} style={styles.freebiesButton}>
-                    <Text style={styles.freebiesText}>View Inclusions</Text>
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          {currentOccasion ? (
+            <>
+              <Text style={styles.selectedOccasionText}>
+                Packages for: <Text style={styles.occasionName}>{currentOccasion}</Text>
+              </Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={styles.packageList}
+              >
+                {packOptions.length > 0 ? (
+                  packOptions.map((p) => (
+                    <TouchableOpacity
+                      key={p.name}
+                      style={[styles.packageCard, data.pack?.name === p.name && styles.packageCardSelected]}
+                      onPress={() => selectPack(p)}
+                      activeOpacity={0.9}
+                    >
+                      {data.pack?.name === p.name && (
+                        <View style={styles.packageCheck}>
+                          <MaterialCommunityIcons name="check-circle" size={24} color="#FFA500" />
+                        </View>
+                      )}
+                      <Text style={styles.packageName}>{p.name}</Text>
+                      <Text style={styles.packagePrice}>{p.price}</Text>
+                      <TouchableOpacity 
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setShowFreebiesModal(true);
+                        }} 
+                        style={styles.freebiesButton}
+                      >
+                        <Text style={styles.freebiesText}>View Inclusions</Text>
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <View style={styles.noPackagesContainer}>
+                    <Text style={styles.noPackagesText}>No packages available for this event type</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </>
+          ) : (
+            <View style={styles.selectOccasionPrompt}>
+              <Text style={styles.selectOccasionText}>Please select an event type first</Text>
+            </View>
+          )}
         </Section>
 
         {/* Add-ons */}
         <Section title="Add-ons (Optional)" icon="plus-circle-outline">
           <View style={styles.chipContainer}>
             {addOnOptions.map((o) => {
-              const active = selectedAddOns.includes(o.name);
+              const active = selectedAddOns.some(a => a.name === o.name);
               return (
                 <TouchableOpacity
                   key={o.name}
                   style={[styles.chip, active && styles.chipActive]}
-                  onPress={() => toggleAddOn(o.name)}
+                  onPress={() => toggleAddOn(o)}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                    {o.name} • {o.price}
+                    {o.name} • ₱{o.price.toLocaleString()}
                   </Text>
                 </TouchableOpacity>
               );
@@ -622,15 +817,48 @@ export default function ReservationScreen() {
               <SummaryRow label="Date" value={selectedDate.toLocaleDateString()} />
               <SummaryRow label="Time" value={selectedTimeLabel || "Not selected"} />
               <SummaryRow label="Event Type" value={data.occasions.join(", ") || "Not selected"} />
-              <SummaryRow label="Package" value={data.pack?.name || "Not selected"} />
+              <SummaryRow label="Package" value={`${data.pack?.name || "Not selected"} - ${data.pack?.price || "₱0"}`} />
+              {beefPorkSelection && <SummaryRow label="Beef/Pork Choice" value={beefPorkSelection} />}
+              {pastaVeggiesSelection && <SummaryRow label="Pasta/Veggies Choice" value={pastaVeggiesSelection} />}
               <SummaryRow label="Menu Items" value={`${data.foods.length} selected`} />
-              <SummaryRow label="Add-ons" value={selectedAddOns.length ? selectedAddOns.join(", ") : "None"} />
+              {selectedAddOns.length > 0 && (
+                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6" }}>
+                  <Text style={[styles.summaryLabel, { marginBottom: 8 }]}>Add-ons:</Text>
+                  {selectedAddOns.map((addon, idx) => (
+                    <View key={idx} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 }}>
+                      <Text style={styles.summaryLabel}>  • {addon.name}</Text>
+                      <Text style={styles.summaryValue}>₱{addon.price.toLocaleString()}</Text>
+                    </View>
+                  ))}
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8, marginTop: 4, borderTopWidth: 1, borderTopColor: "#F3F4F6" }}>
+                    <Text style={styles.summaryLabel}>Add-ons Subtotal:</Text>
+                    <Text style={styles.summaryValue}>₱{addOnsTotal.toLocaleString()}</Text>
+                  </View>
+                </View>
+              )}
               <SummaryRow label="Mobile" value={mobile || "Not provided"} />
               <SummaryRow label="Address" value={address || "Not provided"} />
               
+              <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 2, borderTopColor: "#E5E7EB" }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text style={styles.summaryLabel}>Downpayment:</Text>
+                  <Text style={[styles.summaryValue, { color: "#059669", fontWeight: "700" }]}>₱{downpayment.toLocaleString()}</Text>
+                </View>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text style={styles.summaryLabel}>Remaining Balance:</Text>
+                  <Text style={styles.summaryValue}>₱{(packagePrice - downpayment).toLocaleString()}</Text>
+                </View>
+                {addOnsTotal > 0 && (
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                    <Text style={styles.summaryLabel}>Add-ons:</Text>
+                    <Text style={styles.summaryValue}>₱{addOnsTotal.toLocaleString()}</Text>
+                  </View>
+                )}
+              </View>
+              
               <View style={styles.summaryTotal}>
-                <Text style={styles.totalLabel}>Total Amount</Text>
-                <Text style={styles.totalValue}>{data.pack?.price || "₱0"}</Text>
+                <Text style={styles.totalLabel}>Total Event Cost</Text>
+                <Text style={styles.totalValue}>₱{totalAmount.toLocaleString()}</Text>
               </View>
             </ScrollView>
 
@@ -1051,6 +1279,39 @@ const styles = StyleSheet.create({
   packageList: {
     paddingVertical: 4,
     gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  selectedOccasionText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 16,
+    marginBottom: 8,
+  },
+  occasionName: {
+    fontWeight: '600',
+    color: '#333',
+  },
+  noPackagesContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    minWidth: '100%',
+  },
+  noPackagesText: {
+    color: '#666',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  selectOccasionPrompt: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectOccasionText: {
+    color: '#666',
+    fontStyle: 'italic',
   },
   packageCard: {
     backgroundColor: "#FFFFFF",

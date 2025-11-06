@@ -1,16 +1,16 @@
 [
   {
-    "name": "Kiddie Party",
+    "name": "Kiddie Party & Baptismal",
     "prices": ["100 pax = ₱35,000", "70 pax = ₱30,000", "50 pax = ₱25,000", "30 pax = ₱20,000"],
     "size": "large"
   },
   {
-    "name": "Christening",
-    "prices": ["100 pax = ₱35,000", "70 pax = ₱25,000", "50 pax = ₱20,000", "30 pax = ₱20,000"],
+    "name": "Kiddie Party with Baptismal",
+    "prices": ["100 pax = ₱40,000", "70 pax = ₱35,000", "50 pax = ₱30,000", "30 pax = ₱25,000"],
     "size": "medium"
   },
   {
-    "name": "Adult Birthday",
+    "name": "Birthday",
     "prices": ["100 pax = ₱35,000", "70 pax = ₱30,000", "50 pax = ₱25,000", "30 pax = ₱20,000"],
     "size": "small"
   },
@@ -21,12 +21,17 @@
   },
   {
     "name": "Wedding",
-    "prices": ["100 pax = ₱40,000", "70 pax = ₱35,000", "50 pax = ₱30,000", "30 pax = ₱20,000"],
+    "prices": ["100 pax = ₱45,000", "70 pax = ₱35,000", "50 pax = ₱30,000", "30 pax = ₱20,000"],
     "size": "large"
   },
   {
     "name": "Corporate Gathering",
-    "prices": ["100 pax = ₱40,000", "70 pax = ₱35,000", "50 pax = ₱30,000", "30 pax = ₱20,000"],
+    "prices": ["100 pax = ₱35,000", "70 pax = ₱30,000", "50 pax = ₱25,000", "30 pax = ₱20,000"],
+    "size": "medium"
+  },
+  {
+    "name": "House Blessing",
+    "prices": ["100 pax = ₱35,000", "70 pax = ₱25,000", "50 pax = ₱20,000", "30 pax = ₱20,000"],
     "size": "medium"
   },
   {
@@ -35,7 +40,7 @@
       "Basic backdrop styling",
       "Round tables with cover",
       "Centerpiece & table numbers",
-      "Sanitized utensils & glasswares"
+      "Sanitized utensils & Glasswares"
     ],
     "size": "large"
   },

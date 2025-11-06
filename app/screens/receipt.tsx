@@ -5,29 +5,57 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { db } from "../../src/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 export default function ReceiptScreen() {
   const router = useRouter();
-  const { rid } = useLocalSearchParams<{ rid?: string }>();
+  const { rid, data: dataParam } = useLocalSearchParams<{ rid?: string; data?: string }>();
   const [reservation, setReservation] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const exitingRef = useRef(false);
   const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
+  const [savedToFirestore, setSavedToFirestore] = useState(false);
+  
   const refetch = useCallback(async () => {
-    if (!rid) return;
-    const snap = await getDoc(doc(db, "reservations", String(rid)));
-    setReservation(snap.exists() ? (snap.data() as any) : null);
+    if (rid) {
+      const snap = await getDoc(doc(db, "reservations", String(rid)));
+      setReservation(snap.exists() ? (snap.data() as any) : null);
+    }
   }, [rid]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        if (!rid) return;
-        const snap = await getDoc(doc(db, "reservations", String(rid)));
-        if (mounted) setReservation(snap.exists() ? (snap.data() as any) : null);
+        // If we have dataParam, this is a new reservation - save it to Firestore
+        if (dataParam && !savedToFirestore) {
+          const parsedData = JSON.parse(decodeURIComponent(dataParam));
+          
+          // Convert date string back to Date object
+          const reservationPayload = {
+            ...parsedData,
+            date: new Date(parsedData.date),
+            status: "pending",
+            createdAt: serverTimestamp(),
+          };
+          
+          // Save to Firestore
+          const docRef = await addDoc(collection(db, "reservations"), reservationPayload);
+          console.log("Reservation saved with ID:", docRef.id);
+          
+          if (mounted) {
+            setReservation(parsedData);
+            setSavedToFirestore(true);
+          }
+        }
+        // If we have rid, fetch existing reservation
+        else if (rid) {
+          const snap = await getDoc(doc(db, "reservations", String(rid)));
+          if (mounted) setReservation(snap.exists() ? (snap.data() as any) : null);
+        }
+      } catch (error) {
+        console.error("Error handling reservation:", error);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -35,11 +63,18 @@ export default function ReceiptScreen() {
     return () => {
       mounted = false;
     };
-  }, [rid]);
+  }, [rid, dataParam, savedToFirestore]);
 
   const dateObj = useMemo(() => {
     const d = reservation?.date;
-    return d?.toDate ? d.toDate() : d instanceof Date ? d : null;
+    if (!d) return null;
+    // Handle Firestore Timestamp
+    if (d?.toDate) return d.toDate();
+    // Handle Date object
+    if (d instanceof Date) return d;
+    // Handle ISO string
+    if (typeof d === 'string') return new Date(d);
+    return null;
   }, [reservation?.date]);
 
   const dateText = useMemo(() => (dateObj ? new Date(dateObj).toLocaleDateString() : "–"), [dateObj]);
@@ -52,7 +87,11 @@ export default function ReceiptScreen() {
   const foods: string[] = Array.isArray(reservation?.foods) ? reservation.foods : [];
   const packName = reservation?.packName || "–";
   const packPrice = reservation?.packPrice || "–";
-  const addons: string[] = Array.isArray(reservation?.addons) ? reservation.addons : [];
+  const addons: Array<{ name: string; price: number }> = Array.isArray(reservation?.addons) ? reservation.addons : [];
+  const packagePriceNum = reservation?.packagePriceNum || 0;
+  const addOnsTotal = reservation?.addOnsTotal || 0;
+  const downpayment = reservation?.downpayment || 0;
+  const totalAmount = reservation?.totalAmount || 0;
   const paymentMethodText = useMemo(() => (reservation?.paymentMethod ? String(reservation.paymentMethod) : "GCash"), [reservation?.paymentMethod]);
   const timeText = useMemo(() => {
     if (typeof reservation?.timeLabel === "string" && reservation.timeLabel) return reservation.timeLabel as string;
@@ -162,11 +201,18 @@ export default function ReceiptScreen() {
               <View style={styles.addonsSection}>
                 <Text style={styles.menuLabel}>Add-ons</Text>
                 {addons.map((addon, idx) => (
-                  <View key={`${addon}-${idx}`} style={styles.menuItem}>
-                    <View style={styles.addonDot} />
-                    <Text style={styles.menuText}>{addon}</Text>
+                  <View key={`${addon.name}-${idx}`} style={styles.addonRow}>
+                    <View style={styles.addonLeft}>
+                      <View style={styles.addonDot} />
+                      <Text style={styles.menuText}>{addon.name}</Text>
+                    </View>
+                    <Text style={styles.addonPrice}>₱{addon.price?.toLocaleString() || '0'}</Text>
                   </View>
                 ))}
+                <View style={styles.addonTotalRow}>
+                  <Text style={styles.addonTotalLabel}>Add-ons Total:</Text>
+                  <Text style={styles.addonTotalValue}>₱{addOnsTotal.toLocaleString()}</Text>
+                </View>
               </View>
             )}
           </View>
@@ -174,16 +220,40 @@ export default function ReceiptScreen() {
 
         {/* Payment Summary */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>PAYMENT</Text>
+          <Text style={styles.sectionLabel}>PAYMENT BREAKDOWN</Text>
           <View style={styles.card}>
             <View style={styles.paymentRow}>
               <Text style={styles.paymentLabel}>Payment Method</Text>
               <Text style={styles.paymentValue}>{paymentMethodText}</Text>
             </View>
             <View style={styles.divider} />
+            
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Package Price</Text>
+              <Text style={styles.paymentValue}>₱{packagePriceNum.toLocaleString()}</Text>
+            </View>
+            
+            <View style={styles.paymentRow}>
+              <Text style={[styles.paymentLabel, { color: "#059669", fontWeight: "700" }]}>Downpayment (50%)</Text>
+              <Text style={[styles.paymentValue, { color: "#059669", fontWeight: "700" }]}>₱{downpayment.toLocaleString()}</Text>
+            </View>
+            
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Remaining Balance</Text>
+              <Text style={styles.paymentValue}>₱{(packagePriceNum - downpayment).toLocaleString()}</Text>
+            </View>
+            
+            {addOnsTotal > 0 && (
+              <View style={styles.paymentRow}>
+                <Text style={styles.paymentLabel}>Add-ons</Text>
+                <Text style={styles.paymentValue}>₱{addOnsTotal.toLocaleString()}</Text>
+              </View>
+            )}
+            
+            <View style={styles.divider} />
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total Amount</Text>
-              <Text style={styles.totalValue}>{packPrice}</Text>
+              <Text style={styles.totalLabel}>Total Event Cost</Text>
+              <Text style={styles.totalValue}>₱{totalAmount.toLocaleString()}</Text>
             </View>
           </View>
         </View>
@@ -199,7 +269,7 @@ export default function ReceiptScreen() {
 
         {/* Footer Note */}
         <Text style={styles.footerNote}>
-          Thank you for choosing Ezekiel Azaiah Event & Catering Services
+          Thank you for choosing Ezekiel Ezaiah Event & Catering Services
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -376,6 +446,42 @@ const styles = StyleSheet.create({
     color: "#374151",
     flex: 1,
   },
+  addonRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  addonLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  addonPrice: {
+    fontSize: 14,
+    color: "#059669",
+    fontWeight: "600",
+    marginLeft: 12,
+  },
+  addonTotalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+  },
+  addonTotalLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  addonTotalValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#059669",
+  },
   addonsSection: {
     marginTop: 16,
     paddingTop: 16,
@@ -386,7 +492,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    paddingVertical: 8,
   },
   paymentLabel: {
     fontSize: 14,

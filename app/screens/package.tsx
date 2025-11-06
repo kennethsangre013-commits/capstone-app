@@ -1,9 +1,8 @@
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StyleSheet, View, Text, FlatList } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import packages from "../data/data1.json"; // JSON data
+import packages from "../data/data1.json";
 
-// Define the structure of a package item
 interface Package {
   name: string;
   prices: string[];
@@ -12,10 +11,10 @@ interface Package {
 export default function PackagesScreen() {
   const renderPackage = ({ item }: { item: Package }) => (
     <View style={styles.packageCard}>
-      <Text style={styles.packageCategoryTitle}>{item.name}</Text>
+      <Text style={styles.packageName}>{item.name}</Text>
       <View style={styles.divider} />
       {item.prices.map((price, i) => (
-        <Text key={i} style={styles.packagePriceText}>
+        <Text key={i} style={styles.price}>
           {price}
         </Text>
       ))}
@@ -25,11 +24,11 @@ export default function PackagesScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
-      <View style={styles.topBar}>
-        <Text style={styles.packagesTitle}>Packages & Price List</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Packages & Price List</Text>
       </View>
 
-      <View style={styles.scrollWrapper}>
+      <View style={styles.content}>
         <FlatList
           data={packages}
           renderItem={renderPackage}
@@ -49,80 +48,66 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#3B141C",
   },
-  topBar: {
-    paddingVertical: 40,
+  header: {
+    paddingVertical: 24,
     alignItems: "center",
   },
-  packagesTitle: {
+  title: {
     color: "#FFB200",
     fontWeight: "bold",
     fontSize: 20,
   },
-  scrollWrapper: {
+  content: {
     flex: 1,
-    backgroundColor: "#FAF6F1", // softer off-white for a modern feel
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    paddingTop: 15,
-    paddingHorizontal: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 8,
+    backgroundColor: "#FAFAFA",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 16,
   },
   listContent: {
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 44,
+    padding: 12,
+    paddingBottom: 32,
   },
   row: {
-    justifyContent: "space-around",
-    marginBottom: 12,
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
   },
   packageCard: {
     backgroundColor: "#FFF",
     flex: 1,
-    margin: 8,
-    borderRadius: 18,
-    paddingVertical: 26,
-    paddingHorizontal: 18,
+    margin: 6,
+    borderRadius: 12,
+    padding: 20,
     alignItems: "center",
-    shadowColor: "#FFA500",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.11,
-    shadowRadius: 10,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: "#FFE6B7",
-    minHeight: 130,
-    transitionDuration: "0.18s", // for web, optional
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  packageCategoryTitle: {
-    color: "#86582F",
-    fontSize: 17,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 8,
-    letterSpacing: 0.05,
-  },
-  divider: {
-    height: 3,
-    backgroundColor: "#FFB200",
-    marginVertical: 11,
-    width: "35%",
-    alignSelf: "center",
-    borderRadius: 2,
-  },
-  packagePriceText: {
-    color: "#4a0d0d",
-    fontSize: 14,
+  packageName: {
+    color: "#333",
+    fontSize: 16,
     fontWeight: "600",
     textAlign: "center",
-    marginVertical: 3,
-    backgroundColor: "#FFF7E1",
-    padding: 8,
-    borderRadius: 8,
-    width: "92%",
-    marginHorizontal: 2,
+    marginBottom: 8,
+  },
+  divider: {
+    height: 2,
+    backgroundColor: "#FFB200",
+    marginVertical: 10,
+    width: "40%",
+    borderRadius: 1,
+  },
+  price: {
+    color: "#555",
+    fontSize: 14,
+    textAlign: "center",
+    marginVertical: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#FAFAFA",
+    borderRadius: 6,
+    width: "100%",
   },
 });
