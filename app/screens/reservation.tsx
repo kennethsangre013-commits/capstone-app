@@ -1,10 +1,10 @@
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StyleSheet, View, Text, TouchableOpacity, Modal, Platform, ScrollView, TextInput, ActivityIndicator, BackHandler, Image, FlatList } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Modal, Platform, ScrollView, TextInput, ActivityIndicator, BackHandler, Image, FlatList, ToastAndroid, TouchableWithoutFeedback, Alert } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useState, useMemo, useEffect, useCallback, memo } from "react";
+import React, { useState, useMemo, useEffect, useCallback, memo, useRef } from "react";
 import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useReservation } from "../../src/context/ReservationContext";
 import { useAuth } from "../../src/context/AuthContext";
 import { db } from "../../src/firebase";
@@ -66,6 +66,7 @@ export default function ReservationScreen() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showFreebiesModal, setShowFreebiesModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isHandlingBack, setIsHandlingBack] = useState(false);
   const router = useRouter();
   const { data, setDate, setOccasions, setFoods, setPack, setVenue, reset } = useReservation();
   const { user } = useAuth();
@@ -78,6 +79,9 @@ export default function ReservationScreen() {
   const [selectedMonthOffset, setSelectedMonthOffset] = useState<number>(0);
   const [bookedDateSet, setBookedDateSet] = useState<Set<string>>(new Set());
   const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const lastBackPressRef = useRef<number>(0);
+  const exitingRef = useRef<boolean>(false);
+  const navigation = useNavigation();
   
   const visibleDates = useMemo(() => getMonthDates(selectedMonthOffset, Array.from(bookedDateSet)), [selectedMonthOffset, bookedDateSet]);
   const MAX_MONTH_OFFSET = 12;
@@ -91,6 +95,27 @@ export default function ReservationScreen() {
     const next = data.occasions.includes(o) ? data.occasions.filter((x) => x !== o) : [...data.occasions, o];
     setOccasions(next);
   }, [data.occasions, setOccasions]);
+
+  const showCancelAlert = useCallback(() => {
+    if (exitingRef.current) return;
+    Alert.alert(
+      "Cancel Reservation?",
+      "All your selections will be lost. Are you sure you want to cancel?",
+      [
+        { text: "Stay Here", style: "cancel" },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: () => {
+            if (exitingRef.current) return;
+            exitingRef.current = true;
+            reset();
+            router.replace("/(tabs)/home");
+          },
+        },
+      ]
+    );
+  }, [reset, router]);
 
   const selectPack = useCallback((p: { name: string; price: string }) => {
     setPack(data.pack?.name === p.name ? null : p);
@@ -174,7 +199,7 @@ export default function ReservationScreen() {
         await setDoc(userRef, { phone: mobile || null, address: address || null, updatedAt: serverTimestamp() }, { merge: true });
       }
       reset();
-      router.push(`/screens/payment?rid=${docRef.id}`);
+      router.replace(`/screens/payment?rid=${docRef.id}`);
     } catch (e) {
     } finally {
       setSaving(false);
@@ -210,7 +235,7 @@ export default function ReservationScreen() {
         await setDoc(userRef, { phone: mobile || null, address: address || null, updatedAt: serverTimestamp() }, { merge: true });
       }
       reset();
-      router.push(`/screens/receipt?rid=${docRef.id}`);
+      router.replace(`/screens/receipt?rid=${docRef.id}`);
     } catch (e) {
     } finally {
       setSaving(false);
@@ -221,13 +246,54 @@ export default function ReservationScreen() {
     React.useCallback(() => {
       if (Platform.OS !== "android") return;
       const onBackPress = () => {
-        setShowCancelModal(true);
-        return true;
+        if (exitingRef.current) return true;
+        // If modal is open, close it and consume the event
+        if (showCancelModal) {
+          setShowCancelModal(false);
+          return true;
+        }
+        if (showFreebiesModal) {
+          setShowFreebiesModal(false);
+          return true;
+        }
+        if (showSummaryModal) {
+          setShowSummaryModal(false);
+          return true;
+        }
+        // Double press to open native confirm alert
+        const now = Date.now();
+        if (now - lastBackPressRef.current < 1500) {
+          // Show native confirmation alert
+          showCancelAlert();
+          return true;
+        }
+        lastBackPressRef.current = now;
+        ToastAndroid.show("Press back again to cancel", ToastAndroid.SHORT);
+        return true; // consume event
       };
       const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
       return () => subscription.remove();
-    }, [])
+    }, [showCancelModal, reset, router])
   );
+
+  // Block default navigation (gesture/back) and show native alert instead
+  useEffect(() => {
+    const sub = navigation.addListener('beforeRemove', (e: any) => {
+      if (exitingRef.current) return;
+      // If any modal is visible, just close it and block leaving
+      if (showCancelModal || showFreebiesModal || showSummaryModal) {
+        e.preventDefault();
+        setShowCancelModal(false);
+        setShowFreebiesModal(false);
+        setShowSummaryModal(false);
+        return;
+      }
+      // Prevent leaving and show native alert
+      e.preventDefault();
+      showCancelAlert();
+    });
+    return sub;
+  }, [navigation, showCancelModal, showFreebiesModal, showSummaryModal, showCancelAlert]);
 
   useEffect(() => {
     const selectedStr = formatDate(selectedDate);
@@ -296,7 +362,13 @@ export default function ReservationScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setShowCancelModal(true)} style={styles.backButton}>
+        <TouchableOpacity 
+          onPress={() => {
+            if (exitingRef.current) return;
+            showCancelAlert();
+          }} 
+          style={styles.backButton}
+        >
           <MaterialCommunityIcons name="close" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>New Reservation</Text>
@@ -566,28 +638,42 @@ export default function ReservationScreen() {
       </Modal>
 
       {/* Cancel Modal */}
-      <Modal visible={showCancelModal} transparent animationType="fade" onRequestClose={() => setShowCancelModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Cancel Reservation?</Text>
-            <Text style={styles.modalMessage}>All your selections will be lost. Are you sure you want to cancel?</Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.modalButtonSecondary} onPress={() => setShowCancelModal(false)} activeOpacity={0.7}>
-                <Text style={styles.modalButtonSecondaryText}>Go Back</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalButtonPrimary}
-                onPress={() => {
-                  setShowCancelModal(false);
-                  router.push("/(tabs)/home");
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalButtonPrimaryText}>Yes, Cancel</Text>
-              </TouchableOpacity>
-            </View>
+      <Modal 
+        visible={showCancelModal} 
+        transparent 
+        animationType="fade" 
+        onRequestClose={() => setShowCancelModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowCancelModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Cancel Reservation?</Text>
+                <Text style={styles.modalMessage}>All your selections will be lost. Are you sure you want to cancel?</Text>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={styles.modalButtonSecondary} 
+                    onPress={() => setShowCancelModal(false)} 
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalButtonSecondaryText}>Stay Here</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.modalButtonPrimary}
+                    onPress={() => {
+                      setShowCancelModal(false);
+                      reset(); // Clear reservation data
+                      router.replace("/(tabs)/home");
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalButtonPrimaryText}>Yes, Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
       {/* Freebies Modal */}

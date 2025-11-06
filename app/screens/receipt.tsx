@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, BackHandler, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { db } from "../../src/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -51,11 +52,26 @@ export default function ReceiptScreen() {
     return "–";
   }, [reservation?.timeLabel, dateObj]);
 
+  // Handle hardware back button
+  useFocusEffect(
+    React.useCallback(() => {
+      if (Platform.OS !== "android") return;
+      const onBackPress = () => {
+        router.replace("/(tabs)/home");
+        return true;
+      };
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => subscription.remove();
+    }, [router])
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => {
+          router.replace("/(tabs)/home");
+        }} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Booking Receipt</Text>

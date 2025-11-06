@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -6,17 +6,48 @@ import {
   Image,
   TouchableOpacity,
   Dimensions,
+  BackHandler,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 export default function PaymentScreen() {
   const router = useRouter();
   const { rid } = useLocalSearchParams<{ rid?: string }>();
+  const exitingRef = useRef(false);
+  const navigation = useNavigation();
+
+  // Handle hardware back button
+  useFocusEffect(
+    React.useCallback(() => {
+      if (Platform.OS !== "android") return;
+      const onBackPress = () => {
+        if (exitingRef.current) return true;
+        exitingRef.current = true;
+        router.replace("/(tabs)/home");
+        return true;
+      };
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => subscription.remove();
+    }, [router])
+  );
+
+  // Intercept any back (gesture/system) and route to home
+  useEffect(() => {
+    const sub = navigation.addListener('beforeRemove', (e: any) => {
+      if (exitingRef.current) return;
+      e.preventDefault();
+      exitingRef.current = true;
+      router.replace('/(tabs)/home');
+    });
+    return sub;
+  }, [navigation, router]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -27,7 +58,11 @@ export default function PaymentScreen() {
           size={Math.round(screenWidth * 0.065)}
           color="#FFA500"
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (exitingRef.current) return;
+            exitingRef.current = true;
+            router.replace("/(tabs)/home");
+          }}
         />
         <Text style={styles.headerTitle}>Payment Confirmation</Text>
         <View style={{ width: Math.round(screenWidth * 0.065) }} />

@@ -103,6 +103,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setError("Please verify your email. A verification link has been sent to your inbox.");
         return;
       }
+      // Mark onboarding as seen when user successfully signs in
+      try {
+        await AsyncStorage.setItem("onboardingSeen", "true");
+      } catch {}
     } catch (e: any) {
       setError(mapAuthError(e?.code));
       throw e;
@@ -117,6 +121,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       try { await sendEmailVerification(cred.user); } catch {}
+      // Mark onboarding as seen when user successfully signs up
+      try {
+        await AsyncStorage.setItem("onboardingSeen", "true");
+      } catch {}
     } catch (e: any) {
       setError(mapAuthError(e?.code));
       throw e;
@@ -130,7 +138,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       await firebaseSignOut(auth);
-      try { await AsyncStorage.removeItem(TOKEN_KEY); } catch {}
+      try { 
+        await AsyncStorage.removeItem(TOKEN_KEY);
+        // Optional: Reset onboarding state on sign out (for testing)
+        // await AsyncStorage.removeItem("onboardingSeen");
+      } catch {}
     } catch (e: any) {
       setError(mapAuthError(e?.code));
       throw e;

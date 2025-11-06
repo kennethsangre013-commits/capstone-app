@@ -61,9 +61,14 @@ export default function TabsLayout() {
       listeners={({ navigation }) => ({
         tabPress: (e) => {
           e.preventDefault();
-          if (navigation.canGoBack()) {
+          // Check if we can safely go back without creating loops
+          const state = navigation.getState();
+          const currentRoute = state.routes[state.index];
+          
+          if (navigation.canGoBack() && currentRoute.name !== "home") {
             navigation.goBack();
           } else {
+            // Always navigate to home as fallback
             navigation.navigate("home");
           }
         },

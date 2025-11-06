@@ -58,12 +58,14 @@ export default function OnboardingScreen() {
     if (currentPage < pages.length - 1) {
       scrollViewRef.current.scrollTo({ x: width * (currentPage + 1), animated: true });
     } else {
+      // Mark onboarding as completed
       await AsyncStorage.setItem("onboardingSeen", "true");
       router.replace(user ? "/(tabs)/home" : "/components/signin");
     }
   };
 
   const handleSkip = async () => {
+    // Mark onboarding as completed when skipped
     await AsyncStorage.setItem("onboardingSeen", "true");
     router.replace(user ? "/(tabs)/home" : "/components/signin");
   };
