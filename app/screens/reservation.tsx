@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StyleSheet, View, Text, TouchableOpacity, Modal, Platform, ScrollView, TextInput, ActivityIndicator, BackHandler, Image, FlatList, ToastAndroid, TouchableWithoutFeedback, Alert } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Modal, Platform, ScrollView, KeyboardAvoidingView, TextInput, ActivityIndicator, BackHandler, Image, FlatList, ToastAndroid, TouchableWithoutFeedback, Alert } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useState, useMemo, useEffect, useCallback, memo, useRef } from "react";
 import { useRouter } from "expo-router";
@@ -359,6 +359,11 @@ export default function ReservationScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
+
+      <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
+      >
       
       {/* Header */}
       <View style={styles.header}>
@@ -695,6 +700,7 @@ export default function ReservationScreen() {
           </View>
         </View>
       </Modal>
+    </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
