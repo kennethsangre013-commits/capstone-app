@@ -11,15 +11,17 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
-import { db } from "../../src/firebase";
-import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { db, storage } from "../../src/firebase";
+import { doc, setDoc, serverTimestamp, getDoc, deleteDoc } from "firebase/firestore";
 import * as ImagePicker from "expo-image-picker";
-import { updatePassword, deleteUser } from "firebase/auth";
+import { updatePassword, deleteUser, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
+import { ref as storageRef, listAll, deleteObject } from "firebase/storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 const AVATAR_SIZE = 88;
@@ -35,8 +37,28 @@ export default function ProfileScreen() {
   const [newPassword, setNewPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [reauthVisible, setReauthVisible] = useState(false);
+  const [reauthPassword, setReauthPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const deleteUserFirestoreDoc = useCallback(async (uid: string) => {
+    try {
+      await deleteDoc(doc(db, "users", uid));
+    } catch {}
+  }, []);
+
+  const deleteAllUserStorage = useCallback(async (uid: string) => {
+    try {
+      const root = storageRef(storage, `users/${uid}`);
+      const walk = async (r: ReturnType<typeof storageRef>) => {
+        const { items, prefixes } = await listAll(r);
+        await Promise.all(items.map((it) => deleteObject(it).catch(() => {})));
+        await Promise.all(prefixes.map((p) => walk(p)));
+      };
+      await walk(root);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/components/signin");
@@ -159,11 +181,18 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               setDeletingAccount(true);
+              await deleteUserFirestoreDoc(user.uid);
+              await deleteAllUserStorage(user.uid);
               await deleteUser(user);
               await signOut();
               router.replace("/components/signin");
             } catch (e: any) {
-              setError(e.message || "Failed to delete account.");
+              if (e?.code === "auth/requires-recent-login") {
+                setReauthPassword("");
+                setReauthVisible(true);
+              } else {
+                setError(e?.message || "Failed to delete account.");
+              }
             } finally {
               setDeletingAccount(false);
             }
@@ -171,7 +200,31 @@ export default function ProfileScreen() {
         },
       ]
     );
-  }, [user, signOut]);
+  }, [user, deleteUserFirestoreDoc, deleteAllUserStorage, signOut, router]);
+
+  const handleConfirmReauthAndDelete = useCallback(async () => {
+    if (!user || !user.email) {
+      setError("Unable to reauthenticate. No email associated with this account.");
+      setReauthVisible(false);
+      return;
+    }
+    try {
+      setDeletingAccount(true);
+      const cred = EmailAuthProvider.credential(user.email, reauthPassword);
+      await reauthenticateWithCredential(user, cred);
+      await deleteUserFirestoreDoc(user.uid);
+      await deleteAllUserStorage(user.uid);
+      await deleteUser(user);
+      setReauthVisible(false);
+      await signOut();
+      router.replace("/components/signin");
+    } catch (e: any) {
+      setError(e?.message || "Reauthentication failed.");
+    } finally {
+      setDeletingAccount(false);
+      setReauthPassword("");
+    }
+  }, [user, reauthPassword, deleteUserFirestoreDoc, deleteAllUserStorage, signOut, router]);
 
   if (authLoading) return null;
 
@@ -305,16 +358,54 @@ export default function ProfileScreen() {
               activeOpacity={0.7}
             >
               <MaterialCommunityIcons name="delete-outline" size={20} color="#DC2626" />
-              <Text style={styles.deleteButtonText}>
-                {deletingAccount ? "Deleting..." : "Delete Account"}
-              </Text>
+              <Text style={styles.deleteButtonText}>{deletingAccount ? "Deleting..." : "Delete Account"}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        transparent
+        animationType="fade"
+        visible={reauthVisible}
+        onRequestClose={() => setReauthVisible(false)}
+      >
+        <View style={styles.reauthOverlay}>
+          <View style={styles.reauthCard}>
+            <Text style={styles.reauthTitle}>Confirm Your Password</Text>
+            <Text style={styles.reauthSubtitle}>
+              For security, please enter your current password to delete your account.
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Current password"
+              placeholderTextColor="#9CA3AF"
+              secureTextEntry
+              value={reauthPassword}
+              onChangeText={setReauthPassword}
+            />
+            <View style={styles.reauthActions}>
+              <TouchableOpacity style={styles.reauthSecondary} onPress={() => setReauthVisible(false)}>
+                <Text style={styles.reauthSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.reauthPrimary, deletingAccount && styles.buttonDisabled]}
+                disabled={deletingAccount || !reauthPassword}
+                onPress={handleConfirmReauthAndDelete}
+              >
+                {deletingAccount ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={styles.reauthPrimaryText}>Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -477,5 +568,56 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     marginLeft: 8,
+  },
+  reauthOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  reauthCard: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 20,
+  },
+  reauthTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  reauthSubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  reauthActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+    marginTop: 12,
+  },
+  reauthSecondary: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+  },
+  reauthSecondaryText: {
+    color: "#111827",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  reauthPrimary: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: "#DC2626",
+  },
+  reauthPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

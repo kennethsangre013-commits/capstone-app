@@ -15,11 +15,19 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
 ## Get started
 
-1. Install dependencies
+1. Check nodes / dependencies
 
-   ```bash
-   npm install
-   ```
+   node -v
+   -- Enable yarn
+   corepack enable
+   yarn -v
+
+   -- install deps and packages
+   yarn install
+   yarn install <packagename>
+   
+   optional for expo:
+   npx expo install
 
 2. Start the app
 
