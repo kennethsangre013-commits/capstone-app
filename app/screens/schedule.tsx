@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useAuth } from "../../src/context/AuthContext";
 import { db } from "../../src/firebase";
-import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 
@@ -120,6 +120,31 @@ export default function ScheduleScreen() {
     );
   };
 
+  const deleteReservation = (r: any) => {
+    if (!r?.id) return;
+    Alert.alert(
+      "Delete Reservation",
+      "Are you sure you want to permanently delete this reservation?",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setCancelingId(r.id);
+              await deleteDoc(doc(db, "reservations", String(r.id)));
+            } catch (e) {
+              Alert.alert("Error", "Failed to delete reservation.");
+            } finally {
+              setCancelingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const parseTimeLabel = (label?: string) => {
     if (!label || typeof label !== "string") return { h: 9, m: 0 };
     const m = label.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
@@ -171,6 +196,23 @@ export default function ScheduleScreen() {
     } catch (e) {
       Alert.alert("Error", "Failed to add event to calendar.");
     }
+  };
+
+  const showReservationDetails = (r: any) => {
+    const d = r?.date?.toDate ? r.date.toDate() : r?.date instanceof Date ? r.date : null;
+    const dateText = d ? new Date(d).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "–";
+    const timeText = r?.timeLabel || "–";
+    const packageName = r?.packName || "Package";
+    const occasions = Array.isArray(r?.occasions) && r.occasions.length ? r.occasions.join(", ") : "None";
+    const foods = Array.isArray(r?.foods) && r.foods.length ? r.foods.join(", ") : "None";
+    const venue = r?.venue?.address || "Not specified";
+    const status = r?.status || "Pending";
+
+    Alert.alert(
+      `${packageName} Details`,
+      `Date: ${dateText}\nTime: ${timeText}\nOccasions: ${occasions}\nFoods: ${foods}\nVenue: ${venue}\nStatus: ${status}`,
+      [{ text: "OK" }]
+    );
   };
 
   const getStatusColor = (status?: string) => {
@@ -263,7 +305,8 @@ export default function ScheduleScreen() {
                   key={r.id}
                   reservation={r}
                   onCancel={() => cancelReservation(r)}
-                  onAddToCalendar={() => addReservationToCalendar(r)}
+                  onAddToCalendar={() => showReservationDetails(r)}
+                  onDelete={() => deleteReservation(r)}
                   isCanceling={cancelingId === r.id}
                   getStatusColor={getStatusColor}
                 />
@@ -286,7 +329,8 @@ export default function ScheduleScreen() {
                 key={r.id}
                 reservation={r}
                 onCancel={() => cancelReservation(r)}
-                onAddToCalendar={() => addReservationToCalendar(r)}
+                onAddToCalendar={() => showReservationDetails(r)}
+                onDelete={() => deleteReservation(r)}
                 isCanceling={cancelingId === r.id}
                 getStatusColor={getStatusColor}
               />
@@ -298,16 +342,18 @@ export default function ScheduleScreen() {
   );
 }
 
-function ReservationCard({ 
-  reservation, 
-  onCancel, 
-  onAddToCalendar, 
+function ReservationCard({
+  reservation,
+  onCancel,
+  onAddToCalendar,
+  onDelete,
   isCanceling,
-  getStatusColor 
-}: { 
-  reservation: any; 
-  onCancel: () => void; 
-  onAddToCalendar: () => void; 
+  getStatusColor
+}: {
+  reservation: any;
+  onCancel: () => void;
+  onAddToCalendar: () => void;
+  onDelete: () => void;
   isCanceling: boolean;
   getStatusColor: (status?: string) => string;
 }) {
@@ -349,28 +395,28 @@ function ReservationCard({
       </View>
 
       <View style={styles.cardActions}>
-        <TouchableOpacity 
-          style={styles.actionButton} 
+        <TouchableOpacity
+          style={styles.actionButton}
           onPress={onAddToCalendar}
           activeOpacity={0.7}
         >
-          <MaterialCommunityIcons name="calendar-plus" size={18} color="#FFA500" />
-          <Text style={styles.actionButtonText}>Add to Calendar</Text>
+          <MaterialCommunityIcons name="eye" size={18} color="#FFA500" />
+          <Text style={styles.actionButtonText}>See Details</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.actionButton, (isCanceling || isCancelled) && styles.actionButtonDisabled]}
-          onPress={onCancel}
-          disabled={isCanceling || isCancelled}
+          onPress={isCancelled ? onDelete : onCancel}
+          disabled={isCanceling}
           activeOpacity={0.7}
         >
-          <MaterialCommunityIcons 
-            name={isCancelled ? "close-circle" : "close-circle-outline"} 
-            size={18} 
-            color="#DC2626" 
+          <MaterialCommunityIcons
+            name={isCancelled ? "close" : isCancelled ? "close-circle" : "close-circle-outline"}
+            size={18}
+            color="#DC2626"
           />
           <Text style={[styles.actionButtonText, { color: "#DC2626" }]}>
-            {isCancelled ? "Cancelled" : isCanceling ? "Cancelling..." : "Cancel"}
+            {isCancelled ? "Delete" : isCanceling ? "Cancelling..." : "Cancel"}
           </Text>
         </TouchableOpacity>
       </View>
