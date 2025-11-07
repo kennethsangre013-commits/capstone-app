@@ -23,6 +23,7 @@ import * as ImagePicker from "expo-image-picker";
 import { updatePassword, deleteUser, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 import { ref as storageRef, listAll, deleteObject } from "firebase/storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { HeaderTitle } from "@react-navigation/elements";
 
 const AVATAR_SIZE = 88;
 
@@ -231,9 +232,15 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
+
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
+
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Profile Header */}
+          <View style={styles.headerLogo}>
+            <Text style={styles.headerText}>Profile</Text>
+          </View>
+
+          {/* Profile */}
           <View style={styles.header}>
             <View style={styles.avatarContainer}>
               {photoUrl ? (
@@ -417,6 +424,20 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 40,
+  },
+  headerLogo: {
+    backgroundColor: "#fff",
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  headerText: {
+    fontSize: 24,
+    fontWeight: "500",
+    color: "#111827",
+    textAlign: "left",
+    marginLeft: 4,
   },
   header: {
     alignItems: "center",

@@ -336,7 +336,7 @@ export default function ReservationScreen() {
     if (!data.date || !data.pack) return;
     try {
       setSaving(true);
-      // Prepare reservation data to pass to payment screen
+      // Prepare reservation data to save to Firestore
       const reservationData = {
         userId: user.uid,
         userEmail: user.email || null,
@@ -354,19 +354,28 @@ export default function ReservationScreen() {
         totalAmount: totalAmount,
         paymentMethod: "GCash",
       };
-      
+
       // Save user contact info
       if (mobile || address) {
         const userRef = doc(db, "users", user.uid);
         await setDoc(userRef, { phone: mobile || null, address: address || null, updatedAt: serverTimestamp() }, { merge: true });
       }
-      
+
+      // Save reservation to Firestore
+      const reservationPayload = {
+        ...reservationData,
+        date: new Date(reservationData.date),
+        status: "pending",
+        createdAt: serverTimestamp(),
+      };
+      const docRef = await addDoc(collection(db, "reservations"), reservationPayload);
+
       exitingRef.current = true;
       reset();
-      // Pass data as encoded JSON in route params
-      router.replace(`/screens/payment?data=${encodeURIComponent(JSON.stringify(reservationData))}`);
+      // Pass only the document ID
+      router.replace(`/screens/payment?rid=${docRef.id}`);
     } catch (e) {
-      console.error("Error preparing reservation:", e);
+      console.error("Error saving reservation:", e);
     } finally {
       setSaving(false);
     }
@@ -380,7 +389,7 @@ export default function ReservationScreen() {
     if (!data.date || !data.pack) return;
     try {
       setSaving(true);
-      // Prepare reservation data to pass to receipt screen
+      // Prepare reservation data to save to Firestore
       const reservationData = {
         userId: user.uid,
         userEmail: user.email || null,
@@ -398,19 +407,28 @@ export default function ReservationScreen() {
         downpayment: downpayment,
         totalAmount: totalAmount,
       };
-      
+
       // Save user contact info
       if (mobile || address) {
         const userRef = doc(db, "users", user.uid);
         await setDoc(userRef, { phone: mobile || null, address: address || null, updatedAt: serverTimestamp() }, { merge: true });
       }
-      
+
+      // Save reservation to Firestore
+      const reservationPayload = {
+        ...reservationData,
+        date: new Date(reservationData.date),
+        status: "pending",
+        createdAt: serverTimestamp(),
+      };
+      const docRef = await addDoc(collection(db, "reservations"), reservationPayload);
+
       exitingRef.current = true;
       reset();
-      // Pass data as encoded JSON in route params
-      router.replace(`/screens/receipt?data=${encodeURIComponent(JSON.stringify(reservationData))}`);
+      // Pass only the document ID
+      router.replace(`/screens/receipt?rid=${docRef.id}`);
     } catch (e) {
-      console.error("Error preparing reservation:", e);
+      console.error("Error saving reservation:", e);
     } finally {
       setSaving(false);
     }

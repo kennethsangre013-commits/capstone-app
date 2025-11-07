@@ -20,41 +20,47 @@ import { db } from "../../src/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
 export default function PaymentScreen() {
-  const router = useRouter();
-  const { data: dataParam } = useLocalSearchParams<{ data?: string }>();
-  const exitingRef = useRef(false);
-  const navigation = useNavigation();
-  const [refreshing, setRefreshing] = useState(false);
-  const [reservation, setReservation] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
+   const router = useRouter();
+   const { rid } = useLocalSearchParams<{ rid?: string }>();
+   const exitingRef = useRef(false);
+   const navigation = useNavigation();
+   const [refreshing, setRefreshing] = useState(false);
+   const [reservation, setReservation] = useState<any | null>(null);
+   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    try {
-      if (dataParam) {
-        const parsedData = JSON.parse(decodeURIComponent(dataParam));
-        setReservation(parsedData);
-      }
-    } catch (error) {
-      console.error("Error parsing reservation data:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [dataParam]);
+   useEffect(() => {
+     const fetchReservation = async () => {
+       if (!rid) return;
+       try {
+         const snap = await getDoc(doc(db, "reservations", rid));
+         if (snap.exists()) {
+           setReservation(snap.data() as any);
+         }
+       } catch (error) {
+         console.error("Error fetching reservation:", error);
+       } finally {
+         setLoading(false);
+       }
+     };
+     fetchReservation();
+   }, [rid]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      // Re-parse data if needed
-      if (dataParam) {
-        const parsedData = JSON.parse(decodeURIComponent(dataParam));
-        setReservation(parsedData);
+      // Re-fetch data if needed
+      if (rid) {
+        const snap = await getDoc(doc(db, "reservations", rid));
+        if (snap.exists()) {
+          setReservation(snap.data() as any);
+        }
       }
     } catch (error) {
       console.error("Error refreshing data:", error);
     } finally {
       setRefreshing(false);
     }
-  }, [dataParam]);
+  }, [rid]);
 
   const downpayment = reservation?.downpayment || 0;
   const packagePriceNum = reservation?.packagePriceNum || 0;
@@ -189,8 +195,8 @@ export default function PaymentScreen() {
           style={styles.confirmButton}
           activeOpacity={0.8}
           onPress={() => {
-            if (dataParam) {
-              router.push(`/screens/receipt?data=${dataParam}`);
+            if (rid) {
+              router.push(`/screens/receipt?rid=${rid}`);
             } else {
               router.push("/screens/receipt");
             }
