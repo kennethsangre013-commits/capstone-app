@@ -50,6 +50,7 @@
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "expo-web-browser",
+      "expo-notifications",
       ["expo-build-properties", {
         "ios": {
           "useFrameworks": "static"

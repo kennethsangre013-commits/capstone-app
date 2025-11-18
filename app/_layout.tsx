@@ -1,6 +1,7 @@
 import { Stack, usePathname, useRouter } from "expo-router";
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { ReservationProvider } from "../src/context/ReservationContext";
+import { NotificationProvider } from "../src/context/NotificationContext";
 import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -65,7 +66,9 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <ReservationProvider>
-        <AppNavigator />
+        <NotificationProvider>
+          <AppNavigator />
+        </NotificationProvider>
       </ReservationProvider>
     </AuthProvider>
   );

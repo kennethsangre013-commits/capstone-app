@@ -7,11 +7,13 @@ import { useRouter } from "expo-router";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useReservation } from "../../src/context/ReservationContext";
 import { useAuth } from "../../src/context/AuthContext";
+import { useNotifications } from "../../src/context/NotificationContext";
 import { db } from "../../src/firebase";
 import { addDoc, collection, doc, serverTimestamp, setDoc, onSnapshot } from "firebase/firestore";
 import { categories } from "../data/categories";
 import { foods, type FoodItem } from "../data/foods";
 import pkgData from "../data/data1.json";
+import * as Notifications from "expo-notifications";
 
 function formatDate(date: Date): string {
   const y = date.getFullYear();
@@ -82,13 +84,14 @@ const addOnOptions: { name: string; price: number }[] = [
 ];
 
 export default function ReservationScreen() {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [showFreebiesModal, setShowFreebiesModal] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [isHandlingBack, setIsHandlingBack] = useState(false);
-  const router = useRouter();
-  const { data, setDate, setOccasions, setFoods, setPack, setVenue, reset } = useReservation();
+   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+   const [showCancelModal, setShowCancelModal] = useState(false);
+   const [showFreebiesModal, setShowFreebiesModal] = useState(false);
+   const [saving, setSaving] = useState(false);
+   const [isHandlingBack, setIsHandlingBack] = useState(false);
+   const router = useRouter();
+   const { data, setDate, setOccasions, setFoods, setPack, setVenue, reset } = useReservation();
+   const { addNotification } = useNotifications();
   
   // Track the current occasion for pack options
   const [currentOccasion, setCurrentOccasion] = useState<string>(occasionOptions[0]);
@@ -191,9 +194,9 @@ export default function ReservationScreen() {
       "Cancel Reservation?",
       "All your selections will be lost. Are you sure you want to cancel?",
       [
-        { text: "Stay Here", style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
-          text: "Yes, Cancel",
+          text: "Yes",
           style: "destructive",
           onPress: () => {
             if (exitingRef.current) return;
@@ -370,6 +373,23 @@ export default function ReservationScreen() {
       };
       const docRef = await addDoc(collection(db, "reservations"), reservationPayload);
 
+      // Send push notification
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Reservation Confirmed!",
+          body: `Your booking for ${data.occasions[0]} on ${selectedDate.toLocaleDateString()} has been confirmed.`,
+          data: { reservationId: docRef.id },
+        },
+        trigger: null, // Show immediately
+      });
+
+      // Add to local notifications
+      addNotification({
+        title: "Reservation Confirmed!",
+        body: `Your booking for ${data.occasions[0]} on ${selectedDate.toLocaleDateString()} has been confirmed.`,
+        data: { reservationId: docRef.id },
+      });
+
       exitingRef.current = true;
       reset();
       // Pass only the document ID
@@ -422,6 +442,23 @@ export default function ReservationScreen() {
         createdAt: serverTimestamp(),
       };
       const docRef = await addDoc(collection(db, "reservations"), reservationPayload);
+
+      // Send push notification
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Reservation Confirmed!",
+          body: `Your booking for ${data.occasions[0]} on ${selectedDate.toLocaleDateString()} has been confirmed.`,
+          data: { reservationId: docRef.id },
+        },
+        trigger: null, // Show immediately
+      });
+
+      // Add to local notifications
+      addNotification({
+        title: "Reservation Confirmed!",
+        body: `Your booking for ${data.occasions[0]} on ${selectedDate.toLocaleDateString()} has been confirmed.`,
+        data: { reservationId: docRef.id },
+      });
 
       exitingRef.current = true;
       reset();
@@ -936,13 +973,13 @@ export default function ReservationScreen() {
                     onPress={() => setShowCancelModal(false)} 
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.modalButtonSecondaryText}>Stay Here</Text>
+                    <Text style={styles.modalButtonSecondaryText}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.modalButtonPrimary}
                     onPress={() => {
                       setShowCancelModal(false);
-                      reset(); // Clear reservation data
+                      reset();
                       router.replace("/(tabs)/home");
                     }}
                     activeOpacity={0.7}

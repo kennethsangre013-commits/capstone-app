@@ -6,7 +6,7 @@ export default function AuthActionRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    // Forward Firebase deep links like ezkielcater://__/auth/action?... to our in-app verify screen
+    // Verify email first to proceed to dashboard
     router.replace("/components/verify-email" as any);
   }, [router]);
 

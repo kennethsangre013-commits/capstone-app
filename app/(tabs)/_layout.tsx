@@ -2,11 +2,14 @@ import { Tabs, useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../src/context/AuthContext";
+import { useNotifications } from "../../src/context/NotificationContext";
 import { db } from "../../src/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { View, Text } from "react-native";
 
 export default function TabsLayout() {
   const { user, initializing } = useAuth();
+  const { unreadCount } = useNotifications();
   const router = useRouter();
   const [checkingProfile, setCheckingProfile] = useState(true);
 
@@ -97,7 +100,31 @@ export default function TabsLayout() {
         options={{
           title: "Notification",
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="bell" size={size} color={color} />
+            <View>
+              <MaterialCommunityIcons name="bell" size={size} color={color} />
+              {unreadCount > 0 && (
+                <View style={{
+                  position: 'absolute',
+                  right: -6,
+                  top: -3,
+                  backgroundColor: '#FF4444',
+                  borderRadius: 8,
+                  minWidth: 16,
+                  height: 16,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  paddingHorizontal: 4,
+                }}>
+                  <Text style={{
+                    color: 'white',
+                    fontSize: 10,
+                    fontWeight: 'bold',
+                  }}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />

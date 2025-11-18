@@ -1,14 +1,31 @@
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import { View, Text, StyleSheet, Image, Animated, TouchableWithoutFeedback } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useFonts, Italianno_400Regular } from "@expo-google-fonts/italianno";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "../src/context/AuthContext";
 
 const Index = () => {
   const [fontsLoaded] = useFonts({ Italianno_400Regular, });
   const router = useRouter();
+  const { user, initializing } = useAuth();
+  const [onboardingSeen, setOnboardingSeen] = React.useState<boolean | null>(null);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (initializing) return;
+    const checkOnboarding = async () => {
+      const seen = await AsyncStorage.getItem("onboardingSeen");
+      const isSeen = seen === "true";
+      setOnboardingSeen(isSeen);
+      if (isSeen) {
+        router.replace(user ? "/(tabs)/home" : "/components/signin");
+      }
+    };
+    checkOnboarding();
+  }, [initializing, user, router]);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -24,7 +41,9 @@ const Index = () => {
       tension: 40,
       useNativeDriver: true,
     }).start(() => {
-      router.push("/onboarding");
+      if (onboardingSeen === false) {
+        router.push("/onboarding");
+      }
     });
   };
 
